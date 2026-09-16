@@ -1,0 +1,21 @@
+:root {
+    --pointer: url("/cursor/pointer.cur"), pointer;
+        --cursor: url("/cursor/cursor.cur"), auto;
+
+    --bg-main: #E1E8E7;
+    --bg-surface: #F0F1EC;
+    --primary: #6F7358;
+    --primary-hover: #5C604A;
+    --secondary: #868A6E;
+    --secondary-hover: #73775E;
+    --success: #788A6A;
+    --danger: #A56F68;
+    --warning: #A89569;
+    --border: #C8CDC6;
+    --text-primary: #555943;
+    --text-secondary: #747767;
+    --text-muted: #9C9E92;
+    --text-on-primary: #F5F4EC;
+
+    --background-image-light: url("/assets/images/backgroundImage/BackgroundImage.jpg");
+}

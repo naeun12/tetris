@@ -1,0 +1,19 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    cursor: var(--cursor);
+}
+.soloGameIndex {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 100vh;
+    padding: 4rem 6rem;
+    gap: 4rem;
+    background-image: url("/assets/images/backgroundImage/BackgroundImage.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
