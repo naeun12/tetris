@@ -1,74 +1,20 @@
-/** @format */
+// "NEXT" panel: shows the upcoming piece.
 
-import {
-    Container,
-    Sprite,
-    Assets,
-} from "pixi.js";
+import NextPiece from './NextPiece.jsx';
 
-import NextImage from "../../../public/assets/images/gameAssets/next/next.png";
-
-export default async function NextBox({
-    app,
-    boardX,
-    boardWidth,
-    width,
-    height,
-    gap,
-}) {
-    const texture = await Assets.load(
-        NextImage
-    );
-
-    // ==========================================
-    // MAIN CONTAINER
-    // ==========================================
-
-    const container = new Container();
-
-    container.x =
-        boardX +
-        boardWidth +
-        gap;
-
-    container.y = 20;
-
-    app.stage.addChild(container);
-
-    // ==========================================
-    // NEXT BACKGROUND
-    // ==========================================
-
-    const next = new Sprite(texture);
-
-    next.width = width;
-    next.height = height;
-
-    next.x = 0;
-    next.y = 0;
-
-    container.addChild(next);
-
-    // ==========================================
-    // PIECE CONTAINER
-    // ==========================================
-
-    const pieceContainer =
-        new Container();
-
-    pieceContainer.x = width / 2;
-    pieceContainer.y = height / 2;
-
-    container.addChild(
-        pieceContainer
-    );
-
-    // ==========================================
-    // RETURN
-    // ==========================================
-
-    return {
-        container,
-        pieceContainer,
-    };
+export default function NextBox({ pieceName }) {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3">
+      <span className="text-[11px] font-semibold tracking-[0.25em] text-slate-400">
+        NEXT
+      </span>
+      <div className="flex h-16 w-20 items-center justify-center">
+        {pieceName ? (
+          <NextPiece pieceName={pieceName} />
+        ) : (
+          <span className="text-slate-600">—</span>
+        )}
+      </div>
+    </div>
+  );
 }

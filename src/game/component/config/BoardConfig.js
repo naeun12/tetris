@@ -1,59 +1,17 @@
-/** @format */
+// Central configuration for the Tetris board.
 
-export const BoardConfig = {
-  // BOARD
-  boardWidth: 500,
-  boardHeight: 600,
+export const BOARD_WIDTH = 10;
+export const BOARD_HEIGHT = 20;
+export const CELL_SIZE = 32; // px per cell
 
-  // GRID
-  columns: 10,
-  rows: 20,
+export const BOARD_WIDTH_PX = BOARD_WIDTH * CELL_SIZE;
+export const BOARD_HEIGHT_PX = BOARD_HEIGHT * CELL_SIZE;
 
-  borderLeft: 20,
-  borderRight: 20,
-  borderTop: 20,
-  borderBottom: 20,
+// How often (ms) a piece automatically drops one row.
+export const DROP_INTERVAL_MS = 500;
 
-  // HOLD
-  holdWidth: 100,
-  holdHeight: 100,
-  holdGap: 5,
+// Score awarded per number of lines cleared at once (index = lines).
+export const LINE_SCORES = [0, 100, 300, 500, 800];
 
-  holdX: 0,
-  holdY: 20,
-
-  // NEXT
-  nextWidth: 100,
-  nextHeight: 100,
-  nextGap: 5,
-
-  nextX: 0,
-  nextY: 20,
-
-  // PIECE
-  spawnColumn: 4,
-  spawnRow: 0,
-
-  pieceWidth: 2,
-  pieceHeight: 3,
-
-  // SOFT DROP
-  softDropDistance: 1,
-
-  // GRAVITY
-  gravity: {
-    enabled: true,
-
-    // How many milliseconds between drops
-    interval: 800,
-  },
-
-  // KEYBINDS
-  keys: {
-    left: "ArrowLeft",
-    right: "ArrowRight",
-    softDrop: "ArrowDown",
-    rotate: "ArrowUp",
-    hardDrop: " ",
-  },
-};
+// Score awarded per manual soft-drop row.
+export const SOFT_DROP_SCORE = 1;

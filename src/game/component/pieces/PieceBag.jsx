@@ -1,99 +1,26 @@
-/** @format */
+// Classic "7-bag" randomizer: every piece appears exactly once per
+// bag before the next bag is shuffled.
 
-export default class PieceBag {
+import { PIECE_NAMES } from './Pieces.jsx';
 
-    constructor() {
+export class PieceBag {
+  constructor() {
+    this.bag = [];
+    this.refill();
+  }
 
-        this.bag = [];
-
+  refill() {
+    this.bag = PIECE_NAMES.slice();
+    // Fisher–Yates shuffle
+    for (let i = this.bag.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]];
     }
+  }
 
-
-    // ==========================================
-    // CREATE BAG
-    // ==========================================
-
-    createBag() {
-
-        // Only I and O
-
-        const pieces = [
-            "I",
-            "O",
-            "T",
-            "Z",
-            "S",
-            "J",
-            "L",
-        ];
-
-
-        // Shuffle
-
-        for (
-            let i = pieces.length - 1;
-            i > 0;
-            i--
-        ) {
-
-            const j =
-                Math.floor(
-                    Math.random() * (i + 1)
-                );
-
-
-            [
-                pieces[i],
-                pieces[j]
-            ] = [
-                pieces[j],
-                pieces[i]
-            ];
-        }
-
-
-        return pieces;
-    }
-
-
-    // ==========================================
-    // GET NEXT PIECE
-    // ==========================================
-
-    next() {
-
-        if (
-            this.bag.length === 0
-        ) {
-
-            this.bag =
-                this.createBag();
-        }
-
-
-        return this.bag.shift();
-    }
-
-
-    // ==========================================
-    // PREVIEW NEXT PIECES
-    // ==========================================
-
-    peek(count = 1) {
-
-        while (
-            this.bag.length < count
-        ) {
-
-            this.bag.push(
-                ...this.createBag()
-            );
-        }
-
-
-        return this.bag.slice(
-            0,
-            count
-        );
-    }
+  /** Returns the next piece name (refills the bag when empty). */
+  next() {
+    if (this.bag.length === 0) this.refill();
+    return this.bag.pop();
+  }
 }
