@@ -1,7 +1,7 @@
 import React, { useState,useEffect } from 'react'
 import styles from "../../styles/users/Homepage.module.css"
-import { Link } from "react-router-dom";
 import { playMusic } from "../../utils/music.js"
+import MenuButtons from '../../Buttons/MenuButtons.jsx';
 import { playButtonMusic } from "../../utils/ButtonMusic.js"
 import MenuData from "../../../datas/MenuData.js";
 export default function Homepage() {
@@ -27,19 +27,12 @@ export default function Homepage() {
             <div className={styles.LeftContent}>
                 <div className={styles.menuContainer}>
                     {MenuData.map((menu) => (
-                        <Link
+                        <MenuButtons
                             key={menu.title}
-                            to={menu.link}
-                            onMouseEnter={() => setHoveredMenu(menu)}
-                            onMouseLeave={() => setHoveredMenu(null)}
-                            onClick={playButtonMusic}
-                            className={styles.homepageMenuCard}
-                        >
-                            <div className={styles.homepageMenuContent}>
-                                <h2>{menu.title}</h2>
-                            </div>
-                            <span className={styles.homepageMenuArrow}>→</span>
-                        </Link>
+                            menu={menu}
+                            setHoveredMenu={setHoveredMenu}
+                            playButtonMusic={playButtonMusic}
+                        />
                     ))}
                 </div>
             </div>

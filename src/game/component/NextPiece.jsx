@@ -1,43 +1,141 @@
-// Renders a single tetromino as a mini CSS grid of colored cells.
-// Reused by the Next box and the Hold box.
+/** @format */
 
-import { PIECES } from './board/pieces/Pieces.jsx';
+import { PIECES } from "./board/pieces/Pieces";
 
-const DEFAULT_CELL = 16;
+const NextPiece = ({
+    type,
+    cellSize = 14,
+    offsetX = 0,
+    offsetY = 0,
+}) => {
+    // =========================================================
+    // NO PIECE
+    // =========================================================
 
-export default function NextPiece({ pieceName, cellSize = DEFAULT_CELL }) {
-  const piece = pieceName ? PIECES[pieceName] : null;
-  if (!piece) {
-    return <div style={{ width: cellSize * 3, height: cellSize * 3 }} />;
-  }
-  const { shape, color } = piece;
+    if (!type) {
+        return null;
+    }
 
-  return (
-    <div
-      className="grid"
-      style={{
-        gridTemplateColumns: `repeat(${shape[0].length}, ${cellSize}px)`,
-        gridAutoRows: `${cellSize}px`,
-      }}
-    >
-      {shape.map((row, r) =>
-        row.map((cell, c) => (
-          <div
-            key={`${r}-${c}`}
-            style={
-              cell
-                ? {
-                    margin: 1,
-                    background: color,
-                    borderRadius: 3,
-                    boxShadow:
-                      'inset 0 3px 0 rgba(255,255,255,0.35), inset 0 -3px 0 rgba(0,0,0,0.3)',
-                  }
-                : undefined
-            }
-          />
-        ))
-      )}
-    </div>
-  );
-}
+    // =========================================================
+    // GET PIECE
+    // =========================================================
+
+    const piece = PIECES[type];
+
+    if (!piece) {
+        return null;
+    }
+
+    // =========================================================
+    // PIECE DATA
+    // =========================================================
+
+    const {
+        shape,
+        color,
+        asset,
+    } = piece;
+
+    // =========================================================
+    // GET IMAGE
+    // =========================================================
+
+    const image =
+        asset?.path ||
+        asset?.image ||
+        asset?.src ||
+        asset?.url ||
+        asset;
+
+    // =========================================================
+    // REMOVE EMPTY ROWS
+    // =========================================================
+
+    const rows = shape.filter((row) =>
+        row.some(Boolean)
+    );
+
+    // =========================================================
+    // REMOVE EMPTY COLUMNS
+    // =========================================================
+
+    const keptCols = shape[0]
+        .map((_, x) => x)
+        .filter((x) =>
+            shape.some((row) => row[x])
+        );
+
+    // =========================================================
+    // RENDER
+    // =========================================================
+
+    return (
+        <div
+            className="next-piece"
+            style={{
+                display: "grid",
+
+                gridTemplateColumns:
+                    `repeat(${keptCols.length}, ${cellSize}px)`,
+
+                gridAutoRows:
+                    `${cellSize}px`,
+
+                justifyContent: "center",
+                alignItems: "center",
+
+                // =============================================
+                // POSITION
+                // =============================================
+
+                transform:
+                    `translate(${offsetX}px, ${offsetY}px)`,
+            }}
+        >
+            {rows.flatMap((row, y) =>
+                keptCols.map((x) => {
+                    const filled = row[x];
+
+                    return (
+                        <div
+                            key={`${y}-${x}`}
+                            style={{
+                                width: cellSize,
+                                height: cellSize,
+
+                                // =================================
+                                // FALLBACK COLOR
+                                // =================================
+
+                                backgroundColor:
+                                    filled
+                                        ? color
+                                        : "transparent",
+
+                                // =================================
+                                // PIECE IMAGE
+                                // =================================
+
+                                backgroundImage:
+                                    filled && image
+                                        ? `url("${image}")`
+                                        : "none",
+
+                                backgroundSize:
+                                    "contain",
+
+                                backgroundPosition:
+                                    "center",
+
+                                backgroundRepeat:
+                                    "no-repeat",
+                            }}
+                        />
+                    );
+                })
+            )}
+        </div>
+    );
+};
+
+export default NextPiece;

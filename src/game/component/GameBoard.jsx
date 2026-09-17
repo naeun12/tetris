@@ -1,470 +1,1174 @@
 /** @format */
 
-import { useEffect, useRef } from 'react';
-import { Application, Container, Sprite, Texture } from 'pixi.js';
+import { useEffect, useRef, useState, useCallback } from "react";
+
+import { Application } from "@pixi/react";
 
 import {
-    BOARD_WIDTH_PX,
-    BOARD_HEIGHT_PX,
+    BOARD_WIDTH,
+    BOARD_HEIGHT,
     CELL_SIZE,
-} from '../component/config/BoardConfig.js';
+    COLORS,
+    SCORE_TABLE,
+    TICK_BASE_MS,
+    TICK_MIN_MS,
+    TICK_LEVEL_STEP_MS,
+    LOCK_DELAY_MS,
+    DAS_MS,
+    ARR_MS,
+} from "./board/config/BoardConfig";
 
-import { getDropY } from '../component/collision/Collision.js';
-import GameGrid from './GameGrid.jsx';
+import { PIECES } from "./board/pieces/Pieces";
+import PieceBag from "./board/pieces/PieceBag";
 
-/**
- * Pre-renders a glossy cell sprite for a given color.
- */
-function makeCellTexture(color) {
-    const canvas = document.createElement('canvas');
+import {
+    createEmptyBoard,
+    mergePiece,
+    clearLines,
+} from "./board/BoardState";
 
-    canvas.width = CELL_SIZE;
-    canvas.height = CELL_SIZE;
+import { collides } from "./board/collision/Collision";
 
-    const ctx = canvas.getContext('2d');
+import {
+    tryMove,
+    tryRotate,
+    getDropY,
+} from "./board/movement/Movement";
 
-    const pad = 1;
+import Board from "./Board";
+import HoldBox from "./HoldBox";
+import NextBox from "./NextBox";
+import LevelIndicator from "./indicators/LevelIndicator";
 
-    // Main color
-    ctx.globalAlpha = 0.95;
-    ctx.fillStyle = color;
+import styles from "../../styles/gameComponent/GameBoard.module.css";
 
-    ctx.fillRect(
-        pad,
-        pad,
-        CELL_SIZE - pad * 2,
-        CELL_SIZE - pad * 2
+
+/* =========================================================
+   SPAWN PIECE
+========================================================= */
+
+const spawnPiece = (type) => {
+    const piece = PIECES[type];
+
+    return {
+        type,
+        shape: piece.shape,
+        image: piece.image,
+        x: Math.floor(
+            (BOARD_WIDTH - piece.shape[0].length) / 2
+        ),
+        y: 0,
+    };
+};
+
+
+/* =========================================================
+   GAME BOARD
+========================================================= */
+
+const GameBoard = () => {
+
+    /* =====================================================
+       PIECE BAG
+    ===================================================== */
+
+    const bagRef = useRef(null);
+
+    if (bagRef.current === null) {
+        bagRef.current = new PieceBag();
+    }
+
+
+    /* =====================================================
+       GAME STATE
+    ===================================================== */
+
+    const [board, setBoard] = useState(
+        createEmptyBoard
     );
 
-    // Reset alpha
-    ctx.globalAlpha = 1;
-
-    // Highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-
-    ctx.fillRect(
-        pad,
-        pad,
-        CELL_SIZE - pad * 2,
-        4
+    const [piece, setPiece] = useState(() =>
+        spawnPiece(
+            bagRef.current.next()
+        )
     );
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    const [hold, setHold] = useState(null);
 
-    ctx.fillRect(
-        pad,
-        CELL_SIZE - pad - 4,
-        CELL_SIZE - pad * 2,
-        4
-    );
+    const [canHold, setCanHold] = useState(true);
 
-    return Texture.from(canvas);
-}
+    const [score, setScore] = useState(0);
 
-/**
- * Soft white outline used for the ghost piece.
- */
-function makeGhostTexture() {
-    const canvas = document.createElement('canvas');
+    const [lines, setLines] = useState(0);
 
-    canvas.width = CELL_SIZE;
-    canvas.height = CELL_SIZE;
+    const [gameOver, setGameOver] = useState(false);
 
-    const ctx = canvas.getContext('2d');
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 2;
+    /* =====================================================
+       LOCK DELAY
+    ===================================================== */
 
-    ctx.strokeRect(
-        2,
-        2,
-        CELL_SIZE - 4,
-        CELL_SIZE - 4
-    );
+    const [lockTimer, setLockTimer] = useState(null);
 
-    return Texture.from(canvas);
-}
 
-export default function GameBoard({ gameData }) {
-    /**
-     * HTML canvas reference.
-     */
-    const canvasRef = useRef(null);
+    /* =====================================================
+       DAS / ARR
+    ===================================================== */
 
-    /**
-     * IMPORTANT:
-     * gameDataRef is a REAL React ref.
-     *
-     * The ticker can continuously read:
-     * gameDataRef.current
-     *
-     * without recreating the Pixi application.
-     */
-    const gameDataRef = useRef(gameData);
+    const dasTimerRef = useRef(null);
 
-    /**
-     * Keep gameDataRef updated whenever React receives
-     * new board/piece data.
-     */
-    useEffect(() => {
-        gameDataRef.current = gameData;
-    }, [gameData]);
+    const arrTimerRef = useRef(null);
 
-    /**
-     * Create PixiJS only once.
-     */
-    useEffect(() => {
-        let disposed = false;
-        let app = null;
+    const heldDirectionRef = useRef(null);
 
-        const init = async () => {
-            // Make sure canvas exists
-            if (!canvasRef.current) {
-                return;
+
+    /* =====================================================
+       LEVEL
+    ===================================================== */
+
+    const level =
+        Math.floor(lines / 10) + 1;
+
+
+    /* =====================================================
+       GHOST PIECE
+    ===================================================== */
+
+    const ghostY =
+        getDropY(board, piece);
+
+
+    /* =====================================================
+       CLEAR DAS / ARR
+    ===================================================== */
+
+    const clearHorizontalTimers =
+        useCallback(() => {
+
+            if (dasTimerRef.current) {
+                clearTimeout(
+                    dasTimerRef.current
+                );
+
+                dasTimerRef.current = null;
             }
 
-            /**
-             * Create Pixi Application.
-             */
-            app = new Application();
+            if (arrTimerRef.current) {
+                clearInterval(
+                    arrTimerRef.current
+                );
 
-            /**
-             * PixiJS v8
-             *
-             * Use "canvas" instead of the deprecated "view".
-             */
-            await app.init({
-                width: BOARD_WIDTH_PX,
-                height: BOARD_HEIGHT_PX,
-
-                backgroundAlpha: 0,
-
-                canvas: canvasRef.current,
-
-                antialias: false,
-
-                autoDensity: true,
-
-                resolution: window.devicePixelRatio || 1,
-            });
-
-            /**
-             * Component may have unmounted while Pixi was initializing.
-             */
-            if (disposed) {
-                app.destroy(true);
-                app = null;
-                return;
+                arrTimerRef.current = null;
             }
 
-            /**
-             * Container for all game cells.
-             */
-            const layer = new Container();
+            heldDirectionRef.current = null;
 
-            app.stage.addChild(layer);
+        }, []);
 
-            /**
-             * Texture cache.
-             *
-             * Instead of creating a texture every frame,
-             * reuse textures for each color.
-             */
-            const textureCache = {};
 
-            /**
-             * Get or create cell texture.
-             */
-            const getCellTexture = (color) => {
-                if (!color) {
-                    return null;
-                }
+    /* =====================================================
+       LOCK PIECE
+    ===================================================== */
 
-                if (!textureCache[color]) {
-                    textureCache[color] = makeCellTexture(color);
-                }
+    const lockPiece = useCallback(
+        (lockedPiece) => {
 
-                return textureCache[color];
-            };
-
-            /**
-             * Ghost texture.
-             */
-            const ghostTexture = makeGhostTexture();
-
-            /**
-             * Remove all sprites from the game layer.
-             */
-            const clearLayer = () => {
-                for (
-                    let i = layer.children.length - 1;
-                    i >= 0;
-                    i--
-                ) {
-                    const child = layer.children[i];
-
-                    layer.removeChild(child);
-
-                    child.destroy();
-                }
-            };
-
-            /**
-             * Draw one cell.
-             */
-            const drawCell = (color, x, y, texture) => {
-                if (!texture) {
-                    return;
-                }
-
-                /**
-                 * Don't draw outside the board.
-                 */
-                if (
-                    x < 0 ||
-                    x >= BOARD_WIDTH_PX / CELL_SIZE ||
-                    y < 0 ||
-                    y >= BOARD_HEIGHT_PX / CELL_SIZE
-                ) {
-                    return;
-                }
-
-                const sprite = new Sprite(texture);
-
-                sprite.x = x * CELL_SIZE;
-                sprite.y = y * CELL_SIZE;
-
-                sprite.width = CELL_SIZE;
-                sprite.height = CELL_SIZE;
-
-                layer.addChild(sprite);
-            };
-
-            /**
-             * Pixi ticker.
-             *
-             * Runs every frame.
-             */
-            const updateGame = () => {
-                /**
-                 * IMPORTANT:
-                 * Read the latest React game data.
-                 */
-                const currentGameData = gameDataRef.current;
-
-                /**
-                 * Safety check.
-                 */
-                if (!currentGameData) {
-                    return;
-                }
-
-                const board = currentGameData.board;
-                const piece = currentGameData.piece;
-
-                /**
-                 * Safety check for board.
-                 */
-                if (!Array.isArray(board)) {
-                    return;
-                }
-
-                /**
-                 * Clear previous frame.
-                 */
-                clearLayer();
-
-                /**
-                 * ==========================================
-                 * 1. LOCKED CELLS
-                 * ==========================================
-                 */
-                for (let r = 0; r < board.length; r++) {
-                    if (!Array.isArray(board[r])) {
-                        continue;
-                    }
-
-                    for (
-                        let c = 0;
-                        c < board[r].length;
-                        c++
-                    ) {
-                        const color = board[r][c];
-
-                        /**
-                         * Only draw occupied cells.
-                         */
-                        if (!color) {
-                            continue;
-                        }
-
-                        const texture = getCellTexture(color);
-
-                        drawCell(
-                            color,
-                            c,
-                            r,
-                            texture
-                        );
-                    }
-                }
-
-                /**
-                 * ==========================================
-                 * 2. GHOST + ACTIVE PIECE
-                 * ==========================================
-                 */
-                if (!piece) {
-                    return;
-                }
-
-                /**
-                 * Safety checks.
-                 */
-                if (!Array.isArray(piece.shape)) {
-                    return;
-                }
-
-                if (
-                    typeof piece.x !== 'number' ||
-                    typeof piece.y !== 'number'
-                ) {
-                    return;
-                }
-
-                /**
-                 * ==========================================
-                 * GHOST PIECE
-                 * ==========================================
-                 */
-                const ghostY = getDropY(
-                    piece.shape,
+            const merged =
+                mergePiece(
                     board,
-                    piece.x,
-                    piece.y
+                    lockedPiece
                 );
 
-                for (
-                    let r = 0;
-                    r < piece.shape.length;
-                    r++
-                ) {
-                    if (!Array.isArray(piece.shape[r])) {
-                        continue;
-                    }
 
-                    for (
-                        let c = 0;
-                        c < piece.shape[r].length;
-                        c++
-                    ) {
-                        /**
-                         * Empty cell in piece shape.
-                         */
-                        if (!piece.shape[r][c]) {
-                            continue;
-                        }
+            const {
+                board: clearedBoard,
+                cleared,
+            } = clearLines(merged);
 
-                        drawCell(
-                            piece.color,
-                            piece.x + c,
-                            ghostY + r,
-                            ghostTexture
-                        );
-                    }
-                }
 
-                /**
-                 * ==========================================
-                 * ACTIVE PIECE
-                 * ==========================================
-                 */
-                const activeTexture = getCellTexture(
-                    piece.color
+            setBoard(clearedBoard);
+
+
+            /* SCORE */
+
+            if (cleared > 0) {
+
+                const lineScore =
+                    SCORE_TABLE[cleared] || 0;
+
+                setScore(
+                    (currentScore) =>
+                        currentScore +
+                        lineScore * level
                 );
 
-                for (
-                    let r = 0;
-                    r < piece.shape.length;
-                    r++
-                ) {
-                    if (!Array.isArray(piece.shape[r])) {
-                        continue;
-                    }
+                setLines(
+                    (currentLines) =>
+                        currentLines + cleared
+                );
+            }
 
-                    for (
-                        let c = 0;
-                        c < piece.shape[r].length;
-                        c++
-                    ) {
-                        /**
-                         * Empty cell in piece shape.
-                         */
-                        if (!piece.shape[r][c]) {
-                            continue;
-                        }
 
-                        drawCell(
-                            piece.color,
-                            piece.x + c,
-                            piece.y + r,
-                            activeTexture
-                        );
-                    }
-                }
-            };
+            /* NEXT PIECE */
 
-            /**
-             * Add ticker callback.
-             */
-            app.ticker.add(updateGame);
+            const next =
+                spawnPiece(
+                    bagRef.current.next()
+                );
 
-            /**
-             * Store cleanup function on app so the
-             * outer cleanup can remove the ticker.
-             */
-            app.__gameUpdate = updateGame;
+
+            /* GAME OVER CHECK */
+
+            if (
+                collides(
+                    clearedBoard,
+                    next.shape,
+                    next.x,
+                    next.y
+                )
+            ) {
+
+                setGameOver(true);
+
+                clearHorizontalTimers();
+
+                return;
+            }
+
+
+            setPiece(next);
+
+            setCanHold(true);
+
+            setLockTimer(null);
+
+        },
+        [
+            board,
+            level,
+            clearHorizontalTimers,
+        ]
+    );
+
+
+    /* =====================================================
+       NORMAL MOVEMENT
+    ===================================================== */
+
+    const movePiece = useCallback(
+        (dx, dy) => {
+
+            const moved =
+                tryMove(
+                    board,
+                    piece,
+                    dx,
+                    dy
+                );
+
+
+            if (moved) {
+
+                setPiece(moved);
+
+                /*
+                    Any successful movement
+                    resets lock delay.
+                */
+
+                setLockTimer(null);
+            }
+
+        },
+        [
+            board,
+            piece,
+        ]
+    );
+
+
+    /* =====================================================
+       SOFT DROP
+    ===================================================== */
+
+    const softDrop = useCallback(() => {
+
+        const moved =
+            tryMove(
+                board,
+                piece,
+                0,
+                1
+            );
+
+
+        if (moved) {
+
+            setPiece(moved);
+
+            setScore(
+                (currentScore) =>
+                    currentScore + 1
+            );
+
+            setLockTimer(null);
+
+        } else {
+
+            /*
+                Start lock delay.
+            */
+
+            if (lockTimer === null) {
+
+                setLockTimer(
+                    Date.now()
+                );
+            }
+        }
+
+    }, [
+        board,
+        piece,
+        lockTimer,
+    ]);
+
+
+    /* =====================================================
+       ROTATION
+       
+       dir = 1   -> 90° clockwise
+       dir = -1  -> 90° counter-clockwise
+       dir = 2   -> 180°
+    ===================================================== */
+
+    const rotate = useCallback(
+        (dir) => {
+
+            const rotated =
+                tryRotate(
+                    board,
+                    piece,
+                    dir
+                );
+
+
+            if (rotated) {
+
+                setPiece(rotated);
+
+                /*
+                    Rotation resets lock delay.
+                */
+
+                setLockTimer(null);
+            }
+
+        },
+        [
+            board,
+            piece,
+        ]
+    );
+
+
+    /* =====================================================
+       HARD DROP
+    ===================================================== */
+
+    const hardDrop = useCallback(() => {
+
+        const y =
+            getDropY(
+                board,
+                piece
+            );
+
+
+        const dropped = {
+            ...piece,
+            y,
         };
 
-        init();
 
-        /**
-         * Cleanup.
-         */
+        const distance =
+            y - piece.y;
+
+
+        setScore(
+            (currentScore) =>
+                currentScore +
+                distance * 2
+        );
+
+
+        clearHorizontalTimers();
+
+        setLockTimer(null);
+
+
+        /*
+            Hard drop locks immediately.
+        */
+
+        lockPiece(dropped);
+
+    }, [
+        board,
+        piece,
+        lockPiece,
+        clearHorizontalTimers,
+    ]);
+
+
+    /* =====================================================
+       HOLD
+    ===================================================== */
+
+    const holdPiece = useCallback(() => {
+
+        if (!canHold) {
+            return;
+        }
+
+
+        clearHorizontalTimers();
+
+        setLockTimer(null);
+
+
+        const current =
+            piece.type;
+
+
+        /* ================================================
+           THERE IS ALREADY A HOLD PIECE
+        ================================================ */
+
+        if (hold) {
+
+            const swapped =
+                spawnPiece(hold);
+
+
+            if (
+                collides(
+                    board,
+                    swapped.shape,
+                    swapped.x,
+                    swapped.y
+                )
+            ) {
+
+                setGameOver(true);
+
+                return;
+            }
+
+
+            setPiece(swapped);
+
+        }
+
+        /* ================================================
+           FIRST HOLD
+        ================================================ */
+
+        else {
+
+            const next =
+                spawnPiece(
+                    bagRef.current.next()
+                );
+
+            setPiece(next);
+        }
+
+
+        setHold(current);
+
+        setCanHold(false);
+
+    }, [
+        canHold,
+        piece.type,
+        hold,
+        board,
+        clearHorizontalTimers,
+    ]);
+
+
+    /* =====================================================
+       RESTART
+    ===================================================== */
+
+    const restart = useCallback(() => {
+
+        clearHorizontalTimers();
+
+        setLockTimer(null);
+
+
+        bagRef.current =
+            new PieceBag();
+
+
+        setBoard(
+            createEmptyBoard()
+        );
+
+
+        setPiece(
+            spawnPiece(
+                bagRef.current.next()
+            )
+        );
+
+
+        setHold(null);
+
+        setCanHold(true);
+
+        setScore(0);
+
+        setLines(0);
+
+        setGameOver(false);
+
+    }, [
+        clearHorizontalTimers,
+    ]);
+
+
+    /* =====================================================
+       GRAVITY TICK
+    ===================================================== */
+
+    const tickRef =
+        useRef(() => {});
+
+
+    tickRef.current = () => {
+
+        if (gameOver) {
+            return;
+        }
+
+
+        const moved =
+            tryMove(
+                board,
+                piece,
+                0,
+                1
+            );
+
+
+        if (moved) {
+
+            setPiece(moved);
+
+            setLockTimer(null);
+
+        } else {
+
+            /*
+                Piece reached the floor.
+                Start lock delay.
+            */
+
+            if (lockTimer === null) {
+
+                setLockTimer(
+                    Date.now()
+                );
+            }
+        }
+    };
+
+
+    /* =====================================================
+       GRAVITY INTERVAL
+    ===================================================== */
+
+    useEffect(() => {
+
+        if (gameOver) {
+            return;
+        }
+
+
+        const speed =
+            Math.max(
+                TICK_MIN_MS,
+                TICK_BASE_MS -
+                    (level - 1) *
+                        TICK_LEVEL_STEP_MS
+            );
+
+
+        const id =
+            setInterval(
+                () => {
+                    tickRef.current();
+                },
+                speed
+            );
+
+
         return () => {
-            disposed = true;
+            clearInterval(id);
+        };
 
-            if (app) {
-                if (app.__gameUpdate) {
-                    app.ticker.remove(app.__gameUpdate);
+    }, [
+        gameOver,
+        level,
+    ]);
+
+
+    /* =====================================================
+       LOCK DELAY
+    ===================================================== */
+
+    useEffect(() => {
+
+        if (
+            lockTimer === null ||
+            gameOver
+        ) {
+            return;
+        }
+
+
+        const id =
+            setTimeout(() => {
+
+                /*
+                    Check one more time if
+                    the piece is still touching
+                    the floor.
+                */
+
+                const moved =
+                    tryMove(
+                        board,
+                        piece,
+                        0,
+                        1
+                    );
+
+
+                if (!moved) {
+
+                    lockPiece(piece);
+
+                } else {
+
+                    /*
+                        Piece moved again,
+                        so don't lock.
+                    */
+
+                    setPiece(moved);
                 }
 
-                app.destroy(true);
 
-                app = null;
+                setLockTimer(null);
+
+            }, LOCK_DELAY_MS);
+
+
+        return () => {
+            clearTimeout(id);
+        };
+
+    }, [
+        lockTimer,
+        gameOver,
+        board,
+        piece,
+        lockPiece,
+    ]);
+
+
+    /* =====================================================
+       DAS + ARR
+    ===================================================== */
+
+    const startHorizontalMovement =
+        useCallback(
+            (direction) => {
+
+                /*
+                    Clear previous direction.
+                */
+
+                clearHorizontalTimers();
+
+
+                /*
+                    Initial movement.
+                */
+
+                movePiece(
+                    direction,
+                    0
+                );
+
+
+                heldDirectionRef.current =
+                    direction;
+
+
+                /*
+                    DAS
+                */
+
+                dasTimerRef.current =
+                    setTimeout(() => {
+
+                        /*
+                            First repeated movement.
+                        */
+
+                        movePiece(
+                            direction,
+                            0
+                        );
+
+
+                        /*
+                            ARR
+                        */
+
+                        arrTimerRef.current =
+                            setInterval(() => {
+
+                                if (
+                                    heldDirectionRef.current ===
+                                    direction
+                                ) {
+
+                                    movePiece(
+                                        direction,
+                                        0
+                                    );
+                                }
+
+                            }, ARR_MS);
+
+                    }, DAS_MS);
+
+            },
+            [
+                movePiece,
+                clearHorizontalTimers,
+            ]
+        );
+
+
+    /* =====================================================
+       KEYBOARD
+    ===================================================== */
+
+    useEffect(() => {
+
+        const onKeyDown = (e) => {
+
+            /*
+                Prevent browser scrolling.
+            */
+
+            if (
+                [
+                    "ArrowLeft",
+                    "ArrowRight",
+                    "ArrowDown",
+                    "ArrowUp",
+                    " ",
+                ].includes(e.key)
+            ) {
+
+                e.preventDefault();
+            }
+
+
+            /* =============================================
+               GAME OVER
+            ============================================= */
+
+            if (gameOver) {
+
+                if (
+                    e.key === "Enter"
+                ) {
+
+                    restart();
+                }
+
+                return;
+            }
+
+
+            /* =============================================
+               LEFT
+            ============================================= */
+
+            if (
+                e.key === "ArrowLeft"
+            ) {
+
+                if (!e.repeat) {
+
+                    startHorizontalMovement(
+                        -1
+                    );
+                }
+
+                return;
+            }
+
+
+            /* =============================================
+               RIGHT
+            ============================================= */
+
+            if (
+                e.key === "ArrowRight"
+            ) {
+
+                if (!e.repeat) {
+
+                    startHorizontalMovement(
+                        1
+                    );
+                }
+
+                return;
+            }
+
+
+            /* =============================================
+               OTHER CONTROLS
+            ============================================= */
+
+            switch (e.key) {
+
+                /*
+                    SOFT DROP
+                */
+
+                case "ArrowDown":
+                    softDrop();
+                    break;
+
+
+                /*
+                    90° CLOCKWISE
+                    ↑ / X
+                */
+
+                case "ArrowUp":
+                case "x":
+                case "X":
+
+                    rotate(1);
+
+                    break;
+
+
+                /*
+                    90° COUNTER-CLOCKWISE
+                    Z
+                */
+
+                case "z":
+                case "Z":
+
+                    rotate(-1);
+
+                    break;
+
+
+                /*
+                    180° ROTATION
+                    A
+                */
+
+                case "a":
+                case "A":
+
+                    rotate(2);
+
+                    break;
+
+
+                /*
+                    HARD DROP
+                    SPACE
+                */
+
+                case " ":
+
+                    hardDrop();
+
+                    break;
+
+
+                /*
+                    HOLD
+                    C
+                */
+
+                case "c":
+                case "C":
+
+                    holdPiece();
+
+                    break;
+
+
+                default:
+                    break;
             }
         };
-    }, []);
+
+
+        /* =================================================
+           KEY UP
+        ================================================= */
+
+        const onKeyUp = (e) => {
+
+            if (
+                e.key === "ArrowLeft" ||
+                e.key === "ArrowRight"
+            ) {
+
+                clearHorizontalTimers();
+            }
+        };
+
+
+        window.addEventListener(
+            "keydown",
+            onKeyDown
+        );
+
+        window.addEventListener(
+            "keyup",
+            onKeyUp
+        );
+
+
+        return () => {
+
+            window.removeEventListener(
+                "keydown",
+                onKeyDown
+            );
+
+            window.removeEventListener(
+                "keyup",
+                onKeyUp
+            );
+
+            clearHorizontalTimers();
+        };
+
+    }, [
+        gameOver,
+        restart,
+        startHorizontalMovement,
+        softDrop,
+        rotate,
+        hardDrop,
+        holdPiece,
+        clearHorizontalTimers,
+    ]);
+
+
+    /* =====================================================
+       UI
+    ===================================================== */
 
     return (
-        <div
-            className="relative overflow-hidden rounded-lg border border-white/10"
-            style={{
-                width: BOARD_WIDTH_PX,
-                height: BOARD_HEIGHT_PX,
-            }}
-        >
-            {/* DOM Grid */}
-            <div className="absolute inset-0">
-                <GameGrid />
+        <div className={styles.game}>
+
+            {/* HOLD */}
+
+            <div className={styles.holdArea}>
+
+                <HoldBox
+                    type={hold}
+                />
+
             </div>
 
-            {/* PixiJS Canvas */}
-            <canvas
-                ref={canvasRef}
-                className="absolute inset-0"
+
+            {/* LEVEL */}
+
+            <LevelIndicator
+                level={level}
+                lines={lines}
             />
+
+
+            {/* BOARD */}
+
+            <div
+                className={
+                    styles.boardWrap
+                }
+            >
+
+                <Application
+                    width={
+                        BOARD_WIDTH *
+                        CELL_SIZE
+                    }
+                    height={
+                        BOARD_HEIGHT *
+                        CELL_SIZE
+                    }
+                    background={
+                        COLORS.background
+                    }
+                >
+
+                    <Board
+                        board={board}
+                        piece={piece}
+                        ghostY={ghostY}
+                    />
+
+                </Application>
+
+
+                {/* GAME OVER */}
+
+                {gameOver && (
+
+                    <div
+                        className={
+                            styles.overlay
+                        }
+                    >
+
+                        <div
+                            className={
+                                styles.gameOverBox
+                            }
+                        >
+
+                            <h2>
+                                Game Over
+                            </h2>
+
+                            <p>
+                                Score: {score}
+                            </p>
+
+                            <button
+                                onClick={
+                                    restart
+                                }
+                            >
+                                Restart
+                            </button>
+
+                            <span>
+                                Press Enter
+                            </span>
+
+                        </div>
+
+                    </div>
+                )}
+
+            </div>
+
+
+            {/* SIDE */}
+
+            <div
+                className={
+                    styles.side
+                }
+            >
+
+                <NextBox
+                    types={
+                        bagRef.current.peek(3)
+                    }
+                />
+
+
+                {/* STATS */}
+
+                <div
+                    className={
+                        styles.stats
+                    }
+                >
+
+                    <div
+                        className={
+                            styles.statItem
+                        }
+                    >
+
+                        <h3>
+                            Score
+                        </h3>
+
+                        <p>
+                            {score}
+                        </p>
+
+                    </div>
+
+
+                    <div
+                        className={
+                            styles.statItem
+                        }
+                    >
+
+                        <h3>
+                            Lines
+                        </h3>
+
+                        <p>
+                            {lines}
+                        </p>
+
+                    </div>
+
+
+                    <div
+                        className={
+                            styles.statItem
+                        }
+                    >
+
+                        <h3>
+                            Level
+                        </h3>
+
+                        <p>
+                            {level}
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
         </div>
     );
-}
+};
+
+
+export default GameBoard;

@@ -1,0 +1,44 @@
+.homepageMenuCard {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    background: var(--bg-surface, #F0F1EC);
+    border: 1.5px solid var(--border, #C8CDC6);
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--text-primary, #555943);
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 12px rgba(111, 115, 88, 0.04);
+
+    h2 {
+        font-size: 1.35rem;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .homepageMenuArrow {
+        font-size: 1.5rem;
+        transition: transform 0.25s ease;
+    }
+
+    &:hover {
+        background: var(--primary, #6F7358);
+        color: var(--text-on-primary, #FFF);
+        border-color: var(--primary, #6F7358);
+        transform: translateX(-4px);
+
+        h2 {
+            color: var(--text-on-primary, #FFF);
+        }
+
+        .homepageMenuArrow {
+            transform: translateX(4px);
+        }
+    }
+}
+
+
+.homepageMenuCard:hover {
+    cursor: var(--pointer);
+}

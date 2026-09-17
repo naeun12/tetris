@@ -1,25 +1,17 @@
-// Static 10×20 cell grid (DOM) used as the board backdrop.
-// The Pixi canvas is layered on top and draws the actual cells.
+import { extend } from '@pixi/react';
+import { Graphics } from 'pixi.js';
+import { CELL_SIZE } from './board/config/BoardConfig';
+extend({ Graphics });
 
-import { BOARD_WIDTH, BOARD_HEIGHT, CELL_SIZE } from './config/BoardConfig.js';
+const GameGrid = ({ x, y, color }) => (
+  <pixiGraphics
+    x={x * CELL_SIZE}
+    y={y * CELL_SIZE}
+    draw={(g) => {
+      g.clear();
+      g.rect(1, 1, CELL_SIZE - 2, CELL_SIZE - 2).fill(color);
+    }}
+  />
+);
 
-export default function GameGrid() {
-  const cells = [];
-  for (let i = 0; i < BOARD_WIDTH * BOARD_HEIGHT; i++) {
-    cells.push(
-      <div key={i} className="border-[0.5px] border-white/[0.06] bg-white/[0.01]" />
-    );
-  }
-
-  return (
-    <div
-      className="grid"
-      style={{
-        gridTemplateColumns: `repeat(${BOARD_WIDTH}, ${CELL_SIZE}px)`,
-        gridAutoRows: `${CELL_SIZE}px`,
-      }}
-    >
-      {cells}
-    </div>
-  );
-}
+export default GameGrid;

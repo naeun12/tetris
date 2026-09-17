@@ -1,39 +1,32 @@
-// Board state management: empty board, locking pieces, clearing lines.
+/** @format */
 
-import { BOARD_WIDTH, BOARD_HEIGHT, LINE_SCORES } from './config/BoardConfig.js';
+import { BOARD_WIDTH, BOARD_HEIGHT } from "./config/BoardConfig";
 
-/** Returns a fresh empty board (rows of 0 / color strings). */
-export function createEmptyBoard() {
-  return Array.from({ length: BOARD_HEIGHT }, () => new Array(BOARD_WIDTH).fill(0));
-}
+export const createEmptyBoard = () =>
+  Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null));
 
-/**
- * Stamps a locked piece onto the board and returns a new board.
- * `piece` = { shape, x, y, color }
- */
-export function lockPieceToBoard(board, piece) {
-  const next = board.map((row) => row.slice());
-  const { shape, x, y, color } = piece;
-  for (let r = 0; r < shape.length; r++) {
-    for (let c = 0; c < shape[r].length; c++) {
-      if (shape[r][c] && y + r >= 0) {
-        next[y + r][x + c] = color;
+export const mergePiece = (board, piece) => {
+  const newBoard = board.map((row) => [...row]);
+
+  piece.shape.forEach((row, dy) => {
+    row.forEach((cell, dx) => {
+      if (!cell) return;
+      const by = piece.y + dy;
+      const bx = piece.x + dx;
+      if (by >= 0 && by < BOARD_HEIGHT && bx >= 0 && bx < BOARD_WIDTH) {
+        newBoard[by][bx] = piece.type;
       }
-    }
-  }
-  return next;
-}
+    });
+  });
 
-/**
- * Removes full rows, pushes everything down and returns the new
- * board, how many lines were cleared and the score for that.
- */
-export function clearLines(board) {
+  return newBoard;
+};
+
+export const clearLines = (board) => {
   const remaining = board.filter((row) => row.some((cell) => !cell));
-  const linesCleared = BOARD_HEIGHT - remaining.length;
-  const cleared = [
-    ...Array.from({ length: linesCleared }, () => new Array(BOARD_WIDTH).fill(0)),
-    ...remaining,
-  ];
-  return { board: cleared, linesCleared, score: LINE_SCORES[linesCleared] ?? 0 };
-}
+  const cleared = BOARD_HEIGHT - remaining.length;
+  const newRows = Array.from({ length: cleared }, () =>
+    Array(BOARD_WIDTH).fill(null),
+  );
+  return { board: [...newRows, ...remaining], cleared };
+};

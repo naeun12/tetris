@@ -1,0 +1,41 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-family: sans-serif;
+}
+
+.levelInfo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #fff;
+    font-weight: bold;
+}
+
+.bar {
+    position: relative;
+    width: 24px;
+    height: 200px;
+    background-size: cover;
+    background-position: center;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.progress {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background-color: rgba(0, 255, 128, 0.6);
+    /* Adjust color/overlay as needed */
+    transition: height 0.3s ease-in-out;
+}
+
+.next {
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+}

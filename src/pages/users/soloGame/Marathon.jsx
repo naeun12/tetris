@@ -1,12 +1,12 @@
 import styles from "../../../styles/users/soloGameStyles/SoloGameIndex.module.css";
 import Board from "../../../game/tetris";
+import { Link } from "react-router-dom";
 
-export default function SoloGameIndex() {
+export default function Marathon() {
     return (
         <div className={styles.soloGameIndex}>
-
             <div className={styles.gameContainer}>
-                
+                <Board />
             </div>
 
             <div className={styles.content}>
