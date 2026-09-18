@@ -1,10 +1,10 @@
-import GameBoard from './component/GameBoard';
-// import './tetris.scss';
 
-const Tetris = () => (
-  <main className="tetris-page">
-    <GameBoard />
-  </main>
+import GameBoard from "./component/GameBoard";
+
+const Tetris = ({ stats = null }) => (
+    <main className="tetris-page">
+        <GameBoard stats={stats} />
+    </main>
 );
 
 export default Tetris;

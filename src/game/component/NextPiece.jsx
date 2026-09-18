@@ -8,17 +8,9 @@ const NextPiece = ({
     offsetX = 0,
     offsetY = 0,
 }) => {
-    // =========================================================
-    // NO PIECE
-    // =========================================================
-
     if (!type) {
         return null;
     }
-
-    // =========================================================
-    // GET PIECE
-    // =========================================================
 
     const piece = PIECES[type];
 
@@ -26,19 +18,11 @@ const NextPiece = ({
         return null;
     }
 
-    // =========================================================
-    // PIECE DATA
-    // =========================================================
-
     const {
         shape,
         color,
         asset,
     } = piece;
-
-    // =========================================================
-    // GET IMAGE
-    // =========================================================
 
     const image =
         asset?.path ||
@@ -47,17 +31,9 @@ const NextPiece = ({
         asset?.url ||
         asset;
 
-    // =========================================================
-    // REMOVE EMPTY ROWS
-    // =========================================================
-
     const rows = shape.filter((row) =>
         row.some(Boolean)
     );
-
-    // =========================================================
-    // REMOVE EMPTY COLUMNS
-    // =========================================================
 
     const keptCols = shape[0]
         .map((_, x) => x)
@@ -65,29 +41,17 @@ const NextPiece = ({
             shape.some((row) => row[x])
         );
 
-    // =========================================================
-    // RENDER
-    // =========================================================
-
     return (
         <div
             className="next-piece"
             style={{
                 display: "grid",
-
                 gridTemplateColumns:
                     `repeat(${keptCols.length}, ${cellSize}px)`,
-
                 gridAutoRows:
                     `${cellSize}px`,
-
                 justifyContent: "center",
                 alignItems: "center",
-
-                // =============================================
-                // POSITION
-                // =============================================
-
                 transform:
                     `translate(${offsetX}px, ${offsetY}px)`,
             }}
@@ -102,31 +66,18 @@ const NextPiece = ({
                             style={{
                                 width: cellSize,
                                 height: cellSize,
-
-                                // =================================
-                                // FALLBACK COLOR
-                                // =================================
-
                                 backgroundColor:
                                     filled
                                         ? color
                                         : "transparent",
-
-                                // =================================
-                                // PIECE IMAGE
-                                // =================================
-
                                 backgroundImage:
                                     filled && image
                                         ? `url("${image}")`
                                         : "none",
-
                                 backgroundSize:
                                     "contain",
-
                                 backgroundPosition:
                                     "center",
-
                                 backgroundRepeat:
                                     "no-repeat",
                             }}
@@ -139,3 +90,5 @@ const NextPiece = ({
 };
 
 export default NextPiece;
+
+

@@ -10,9 +10,13 @@ export const mergePiece = (board, piece) => {
 
   piece.shape.forEach((row, dy) => {
     row.forEach((cell, dx) => {
-      if (!cell) return;
+      if (!cell) {
+        return;
+      }
+
       const by = piece.y + dy;
       const bx = piece.x + dx;
+
       if (by >= 0 && by < BOARD_HEIGHT && bx >= 0 && bx < BOARD_WIDTH) {
         newBoard[by][bx] = piece.type;
       }
@@ -24,9 +28,15 @@ export const mergePiece = (board, piece) => {
 
 export const clearLines = (board) => {
   const remaining = board.filter((row) => row.some((cell) => !cell));
+
   const cleared = BOARD_HEIGHT - remaining.length;
+
   const newRows = Array.from({ length: cleared }, () =>
     Array(BOARD_WIDTH).fill(null),
   );
-  return { board: [...newRows, ...remaining], cleared };
+
+  return {
+    board: [...newRows, ...remaining],
+    cleared,
+  };
 };

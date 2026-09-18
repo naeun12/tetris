@@ -1,0 +1,132 @@
+.panel {
+    /* Using your frame image as the main background container */
+    background: url("/assets/images/gameAssets/statsPanel/statsPanel.png") center/cover no-repeat;
+    border: none;
+    /* Removed solid border since the image provides the frame */
+    border-radius: 8px;
+    padding: 24px;
+    /* Slightly increased padding to keep content inside the frame's inner border */
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    color: var(--text-primary);
+    box-shadow: 0 12px 32px rgba(45, 48, 34, 0.25);
+    cursor: var(--cursor);
+}
+
+.header {
+    background: transparent;
+    /* Cleaned background so it overlays nicely on the frame */
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    text-align: center;
+}
+
+.headerContent {
+    background: rgba(240, 241, 236, 0.75);
+    /* Semi-transparent surface for readability */
+    backdrop-filter: blur(4px);
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--text-secondary);
+}
+
+.header h2 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--primary);
+    margin: 0;
+    letter-spacing: 1px;
+}
+
+.mainStats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.mainStatCard {
+    background-color: rgba(225, 232, 231, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.mainStatCard span {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.mainStatCard strong {
+    font-size: 1rem;
+    color: var(--primary);
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sectionTitle {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    text-align: center;
+}
+
+.sectionTitle span {
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--primary);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+}
+
+.statCard {
+    background-color: rgba(225, 232, 231, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.statCard:hover {
+    background-color: var(--bg-surface);
+    cursor: var(--pointer);
+}
+
+.statLabel {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.statValue {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}

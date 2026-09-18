@@ -129,23 +129,9 @@ export const detectSpin = (board, piece) => {
     corners,
   };
 };
-
-/*
-=========================================================
- IS SPIN
-=========================================================
-*/
-
 export const isPieceSpin = (board, piece) => {
   return detectSpin(board, piece).isSpin;
 };
-
-/*
-=========================================================
- SPIN NAME
-=========================================================
-*/
-
 export const getSpinName = (board, piece) => {
   return detectSpin(board, piece).type;
 };

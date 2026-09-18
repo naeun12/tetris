@@ -1,10 +1,16 @@
 /** @format */
 
 import { useEffect, useState } from "react";
-
 import { extend } from "@pixi/react";
 import { Sprite, Assets, Graphics } from "pixi.js";
-import {BOARD_WIDTH, BOARD_HEIGHT,CELL_SIZE, COLORS,} from "./board/config/BoardConfig";
+
+import {
+    BOARD_WIDTH,
+    BOARD_HEIGHT,
+    CELL_SIZE,
+    COLORS,
+} from "./board/config/BoardConfig";
+
 import { PIECES } from "./board/pieces/Pieces";
 import GameGrid from "./GameGrid";
 
@@ -17,14 +23,9 @@ const Board = ({
     board = [],
     piece = null,
     ghostY = 0,
+    stats = null,
 }) => {
     const [textures, setTextures] = useState({});
-
-    /*
-    |--------------------------------------------------------------------------
-    | Load piece images
-    |--------------------------------------------------------------------------
-    */
 
     useEffect(() => {
         let cancelled = false;
@@ -73,26 +74,18 @@ const Board = ({
         };
     }, []);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Create cells to render
-    |--------------------------------------------------------------------------
-    */
-
     const cells = [];
-
-    /*
-    |--------------------------------------------------------------------------
-    | Locked board cells
-    |--------------------------------------------------------------------------
-    */
 
     if (Array.isArray(board)) {
         board.forEach((row, y) => {
-            if (!Array.isArray(row)) return;
+            if (!Array.isArray(row)) {
+                return;
+            }
 
             row.forEach((cell, x) => {
-                if (!cell) return;
+                if (!cell) {
+                    return;
+                }
 
                 cells.push({
                     key: `b-${x}-${y}`,
@@ -105,31 +98,35 @@ const Board = ({
         });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Ghost piece
-    |--------------------------------------------------------------------------
-    */
-
     if (
         piece &&
         Array.isArray(piece.shape)
     ) {
         piece.shape.forEach((row, dy) => {
-            if (!Array.isArray(row)) return;
+            if (!Array.isArray(row)) {
+                return;
+            }
 
             row.forEach((cell, dx) => {
-                if (!cell) return;
+                if (!cell) {
+                    return;
+                }
 
                 const y = ghostY + dy;
 
-                if (y < 0 || y >= BOARD_HEIGHT) {
+                if (
+                    y < 0 ||
+                    y >= BOARD_HEIGHT
+                ) {
                     return;
                 }
 
                 const x = piece.x + dx;
 
-                if (x < 0 || x >= BOARD_WIDTH) {
+                if (
+                    x < 0 ||
+                    x >= BOARD_WIDTH
+                ) {
                     return;
                 }
 
@@ -144,31 +141,35 @@ const Board = ({
         });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Active piece
-    |--------------------------------------------------------------------------
-    */
-
     if (
         piece &&
         Array.isArray(piece.shape)
     ) {
         piece.shape.forEach((row, dy) => {
-            if (!Array.isArray(row)) return;
+            if (!Array.isArray(row)) {
+                return;
+            }
 
             row.forEach((cell, dx) => {
-                if (!cell) return;
+                if (!cell) {
+                    return;
+                }
 
                 const y = piece.y + dy;
 
-                if (y < 0 || y >= BOARD_HEIGHT) {
+                if (
+                    y < 0 ||
+                    y >= BOARD_HEIGHT
+                ) {
                     return;
                 }
 
                 const x = piece.x + dx;
 
-                if (x < 0 || x >= BOARD_WIDTH) {
+                if (
+                    x < 0 ||
+                    x >= BOARD_WIDTH
+                ) {
                     return;
                 }
 
@@ -183,23 +184,17 @@ const Board = ({
         });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Render
-    |--------------------------------------------------------------------------
-    */
-
     return (
         <>
-            {/* ---------------------------------------------------------- */}
-            {/* Board Grid */}
-            {/* ---------------------------------------------------------- */}
-
             <pixiGraphics
                 draw={(g) => {
                     g.clear();
 
-                    for (let x = 0; x <= BOARD_WIDTH; x++) {
+                    for (
+                        let x = 0;
+                        x <= BOARD_WIDTH;
+                        x++
+                    ) {
                         g.moveTo(
                             x * CELL_SIZE,
                             0
@@ -207,18 +202,24 @@ const Board = ({
 
                         g.lineTo(
                             x * CELL_SIZE,
-                            BOARD_HEIGHT * CELL_SIZE
+                            BOARD_HEIGHT *
+                                CELL_SIZE
                         );
                     }
 
-                    for (let y = 0; y <= BOARD_HEIGHT; y++) {
+                    for (
+                        let y = 0;
+                        y <= BOARD_HEIGHT;
+                        y++
+                    ) {
                         g.moveTo(
                             0,
                             y * CELL_SIZE
                         );
 
                         g.lineTo(
-                            BOARD_WIDTH * CELL_SIZE,
+                            BOARD_WIDTH *
+                                CELL_SIZE,
                             y * CELL_SIZE
                         );
                     }
@@ -230,25 +231,33 @@ const Board = ({
                 }}
             />
 
-            {/* ---------------------------------------------------------- */}
-            {/* Pieces */}
-            {/* ---------------------------------------------------------- */}
-
             {cells.map((cell) => {
-                const pieceData = PIECES[cell.type];
-                const texture = textures[cell.type];
+                const pieceData =
+                    PIECES[cell.type];
+
+                const texture =
+                    textures[cell.type];
+
                 const pieceColor =
-                    pieceData?.color ?? 0xffffff;
+                    pieceData?.color ??
+                    0xffffff;
+
                 let tint = 0xffffff;
+
                 if (
-                    typeof pieceColor === "string"
+                    typeof pieceColor ===
+                    "string"
                 ) {
                     tint = parseInt(
-                        pieceColor.replace("#", ""),
+                        pieceColor.replace(
+                            "#",
+                            ""
+                        ),
                         16
                     );
                 } else if (
-                    typeof pieceColor === "number"
+                    typeof pieceColor ===
+                    "number"
                 ) {
                     tint = pieceColor;
                 }
@@ -258,28 +267,21 @@ const Board = ({
                         <pixiSprite
                             key={cell.key}
                             texture={texture}
-
                             x={
                                 cell.x *
                                 CELL_SIZE
                             }
-
                             y={
                                 cell.y *
                                 CELL_SIZE
                             }
-
-                            width={CELL_SIZE}
-                            height={CELL_SIZE}
-
-                            /*
-                            | IMPORTANT:
-                            | Do NOT use 0xffffff here.
-                            | This keeps the piece's color.
-                            */
-
+                            width={
+                                CELL_SIZE
+                            }
+                            height={
+                                CELL_SIZE
+                            }
                             tint={tint}
-
                             alpha={
                                 cell.ghost
                                     ? 0.25
@@ -288,13 +290,12 @@ const Board = ({
                         />
                     );
                 }
+
                 return (
                     <GameGrid
                         key={cell.key}
-
                         x={cell.x}
                         y={cell.y}
-
                         color={
                             cell.ghost
                                 ? COLORS.ghost

@@ -1,0 +1,175 @@
+.containerHandling {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    color: var(--text-primary);
+    cursor: var(--cursor);
+}
+
+/* INDIVIDUAL SETTING CARDS & HEADER BOX */
+.Arr,
+.Das,
+.Dcd,
+.Sdf {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(85, 89, 67, 0.05);
+    transition: all 0.2s ease;
+}
+
+.Arr:hover,
+.Das:hover,
+.Dcd:hover,
+.Sdf:hover {
+    border-color: var(--secondary);
+    box-shadow: 0 6px 16px rgba(85, 89, 67, 0.08);
+    transform: translateY(-1px);
+}
+
+.settingHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.settingInfo h2 {
+    margin: 0 0 2px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.3px;
+}
+
+.settingInfo p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* FREQUENCY / VALUE BADGE */
+.settingValue span {
+    padding: 4px 10px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--primary);
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+/* CUSTOM RANGE SLIDER */
+.settingSlider {
+    width: 100%;
+    height: 6px;
+    appearance: none;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+    cursor: var(--pointer);
+    transition: background 0.2s ease;
+}
+
+.settingSlider::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: var(--pointer);
+    box-shadow: 0 2px 4px rgba(85, 89, 67, 0.2);
+    transition: transform 0.1s ease, background 0.2s ease;
+}
+
+.settingSlider::-webkit-slider-thumb:hover {
+    background: var(--primary-hover);
+    transform: scale(1.15);
+}
+
+.settingSlider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: var(--pointer);
+    box-shadow: 0 2px 4px rgba(85, 89, 67, 0.2);
+    transition: transform 0.1s ease, background 0.2s ease;
+}
+
+.settingSlider::-moz-range-thumb:hover {
+    background: var(--primary-hover);
+    transform: scale(1.15);
+}
+
+/* ACTION BUTTONS CONTAINER */
+.actionButtons {
+    display: flex;
+    gap: 12px;
+    margin-top: 6px;
+    background: var(--bg-surface);
+    padding: 14px 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.saveButton,
+.backButton,
+.resetButton {
+    flex: 1;
+    padding: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 8px;
+    cursor: var(--pointer);
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.backButton {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.backButton:hover {
+    background: var(--border);
+    color: var(--text-primary);
+}
+
+.resetButton {
+    background: var(--bg-main);
+    color: var(--danger);
+    border: 1px solid var(--border);
+}
+
+.resetButton:hover {
+    background: var(--danger);
+    color: var(--text-on-primary);
+    border-color: var(--danger);
+}
+
+.saveButton {
+    background: var(--primary);
+    color: var(--text-on-primary);
+}
+
+.saveButton:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.saveButton:active,
+.backButton:active,
+.resetButton:active {
+    transform: scale(0.97);
+}
