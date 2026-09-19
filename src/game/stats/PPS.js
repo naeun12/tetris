@@ -4,33 +4,17 @@ class PPS {
   constructor() {
     this.pieces = 0;
     this.startTime = performance.now();
-
-    console.log("[PPS] Initialized", {
-      pieces: this.pieces,
-      startTime: this.startTime,
-    });
   }
 
   reset() {
     this.pieces = 0;
     this.startTime = performance.now();
-
-    console.log("[PPS] Reset", {
-      pieces: this.pieces,
-      startTime: this.startTime,
-    });
   }
 
   addPiece(count = 1) {
     const value = Math.max(0, Number(count) || 0);
 
     this.pieces += value;
-
-    console.log("[PPS] Piece Added", {
-      added: value,
-      totalPieces: this.pieces,
-      pps: this.getFormatted(),
-    });
   }
 
   getPieces() {

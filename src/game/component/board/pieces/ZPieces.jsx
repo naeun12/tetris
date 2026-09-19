@@ -1,7 +1,8 @@
-import PieceAssetSelector from "../../../selector/PieceAssetSelector";
+import PiecesSelector from "./PiecesSelector";
+const piecesSelector = new PiecesSelector();
 const ZPiece = {
   type: 'Z',
-  asset: PieceAssetSelector,
+  asset: piecesSelector.select,
   color: '#ff3d5e',
   shape: [
     [1, 1, 0],

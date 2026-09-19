@@ -1,9 +1,10 @@
 /** @format */
-/** @format */
 
 import PieceAssetModel from "../model/PieceAssetModel";
 
 const PieceAssetData = {
+  default: new PieceAssetModel("Default", null),
+
   crystal: new PieceAssetModel(
     "Crystal",
     "/assets/images/gameAssets/pieces/block-crystal.png",

@@ -13,10 +13,7 @@ const LevelIndicator = ({ level = 1, lines = 0 }) => {
 
     return (
         <div className={styles.container}>
-            <div className={styles.levelInfo}>
-                <span className={styles.label}>Level</span>
-                <span className={styles.value}>{level}</span>
-            </div>
+           
 
             <div
                 className={styles.bar}

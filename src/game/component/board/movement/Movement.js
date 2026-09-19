@@ -1,14 +1,18 @@
 /** @format */
 
 import { collides } from "../collision/Collision";
+
 import { getKicks, get180Kicks } from "../rotation/SRS";
+
 import { playSfx } from "../../../audio/SfxPlayer";
 
 const ROTATION_STATES = ["0", "R", "2", "L"];
+
 const SPIN_PIECES = ["I", "J", "L", "S", "Z", "T"];
 
 const getNextRotationState = (current, dir) => {
   const index = ROTATION_STATES.indexOf(current);
+
   const currentIndex = index === -1 ? 0 : index;
 
   if (dir === 1) {
@@ -201,25 +205,181 @@ const getSpinCorners = (board, piece) => {
     [centerX + 1, centerY + 1],
   ];
 
-  return corners.reduce((count, [x, y]) => {
-    return count + (isOccupied(board, x, y) ? 1 : 0);
-  }, 0);
+  return corners.reduce(
+    (count, [x, y]) => count + (isOccupied(board, x, y) ? 1 : 0),
+    0,
+  );
 };
 
-export const isTSpin = (board, piece) => {
-  if (!piece || piece.type !== "T") {
+const isLockedAtPosition = (board, piece) => {
+  if (!board || !piece) {
     return false;
   }
 
-  if (!piece.lastRotation) {
+  return collides(board, piece.shape, piece.x, piece.y + 1);
+};
+
+const hasValidRotation = (piece) => {
+  if (!piece) {
+    return false;
+  }
+
+  return piece.lastRotation === true && piece.rotationDirection !== 0;
+};
+
+const getPieceCells = (piece) => {
+  if (!piece || !piece.shape) {
+    return [];
+  }
+
+  const cells = [];
+
+  for (let row = 0; row < piece.shape.length; row++) {
+    for (let col = 0; col < piece.shape[row].length; col++) {
+      if (!piece.shape[row][col]) {
+        continue;
+      }
+
+      cells.push([piece.x + col, piece.y + row]);
+    }
+  }
+
+  return cells;
+};
+
+const getBottomCells = (piece) => {
+  if (!piece || !piece.shape) {
+    return [];
+  }
+
+  const cells = [];
+
+  for (let row = 0; row < piece.shape.length; row++) {
+    for (let col = 0; col < piece.shape[row].length; col++) {
+      if (!piece.shape[row][col]) {
+        continue;
+      }
+
+      let hasPieceBelow = false;
+
+      for (let nextRow = row + 1; nextRow < piece.shape.length; nextRow++) {
+        if (piece.shape[nextRow][col]) {
+          hasPieceBelow = true;
+
+          break;
+        }
+      }
+
+      if (!hasPieceBelow) {
+        cells.push([piece.x + col, piece.y + row]);
+      }
+    }
+  }
+
+  return cells;
+};
+
+const getSupportedBottomCells = (board, piece) => {
+  const bottomCells = getBottomCells(piece);
+
+  return bottomCells.filter(([x, y]) => isOccupied(board, x, y + 1));
+};
+
+const getBlockedSides = (board, piece) => {
+  const cells = getPieceCells(piece);
+
+  let leftBlocked = 0;
+  let rightBlocked = 0;
+
+  for (const [x, y] of cells) {
+    if (isOccupied(board, x - 1, y)) {
+      leftBlocked++;
+    }
+
+    if (isOccupied(board, x + 1, y)) {
+      rightBlocked++;
+    }
+  }
+
+  return {
+    leftBlocked,
+    rightBlocked,
+  };
+};
+
+const hasTightGeometry = (board, piece) => {
+  if (!SPIN_PIECES.includes(piece.type)) {
+    return false;
+  }
+
+  const occupied = piece.shape.reduce(
+    (count, row) => count + row.filter(Boolean).length,
+    0,
+  );
+
+  if (occupied !== 4) {
+    return false;
+  }
+
+  const supported = getSupportedBottomCells(board, piece);
+
+  if (supported.length === 0) {
+    return false;
+  }
+
+  const { leftBlocked, rightBlocked } = getBlockedSides(board, piece);
+
+  const corners = getSpinCorners(board, piece);
+
+  if (piece.type === "I") {
+    return (
+      supported.length >= 2 &&
+      (leftBlocked >= 1 || rightBlocked >= 1) &&
+      corners >= 2
+    );
+  }
+
+  if (["J", "L"].includes(piece.type)) {
+    return (
+      supported.length >= 1 &&
+      (leftBlocked >= 1 || rightBlocked >= 1) &&
+      corners >= 2
+    );
+  }
+
+  if (["S", "Z"].includes(piece.type)) {
+    return (
+      supported.length >= 1 &&
+      (leftBlocked >= 1 || rightBlocked >= 1) &&
+      corners >= 2
+    );
+  }
+
+  return false;
+};
+
+const isTSpinPosition = (board, piece) => {
+  if (!isLockedAtPosition(board, piece)) {
+    return false;
+  }
+
+  if (!hasValidRotation(piece)) {
     return false;
   }
 
   return getSpinCorners(board, piece) >= 3;
 };
 
-export const isSpin = (board, piece) => {
-  if (!piece) {
+const isAllSpinPosition = (board, piece) => {
+  if (!isLockedAtPosition(board, piece)) {
+    return false;
+  }
+
+  if (!hasValidRotation(piece)) {
+    return false;
+  }
+
+  if (piece.type === "T" || piece.type === "O") {
     return false;
   }
 
@@ -227,17 +387,27 @@ export const isSpin = (board, piece) => {
     return false;
   }
 
-  if (!piece.lastRotation) {
+  return hasTightGeometry(board, piece);
+};
+
+export const isTSpin = (board, piece) => {
+  if (!piece || piece.type !== "T") {
     return false;
   }
 
-  const corners = getSpinCorners(board, piece);
+  return isTSpinPosition(board, piece);
+};
 
-  if (piece.type === "T") {
-    return corners >= 3;
+export const isSpin = (board, piece) => {
+  if (!piece) {
+    return false;
   }
 
-  return corners >= 3;
+  if (piece.type === "T") {
+    return isTSpinPosition(board, piece);
+  }
+
+  return isAllSpinPosition(board, piece);
 };
 
 export const getSpinType = (board, piece, cleared) => {

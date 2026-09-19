@@ -1,13 +1,16 @@
 /** @format */
 
 import PPS from "../../stats/PPS";
+
 import APM from "../../stats/APM";
+
+import MarathonConfig from "./MarathonConfig";
 
 class MarathonStats {
   constructor() {
     this.score = 0;
     this.lines = 0;
-    this.level = 1;
+    this.level = MarathonConfig.startingLevel;
     this.combo = -1;
     this.maxCombo = 0;
     this.backToBack = 0;
@@ -34,6 +37,7 @@ class MarathonStats {
     }
 
     this.lines += count;
+
     this.combo += 1;
 
     if (this.combo > this.maxCombo) {
@@ -45,6 +49,7 @@ class MarathonStats {
 
   addScore(points) {
     const value = Number(points) || 0;
+
     this.score += value;
   }
 
@@ -59,9 +64,16 @@ class MarathonStats {
   }
 
   updateLevel() {
-    const newLevel = Math.floor(this.lines / 10) + 1;
+    const linesPerLevel = MarathonConfig.linesPerLevel;
 
-    this.level = newLevel;
+    const maxLevel = Math.max(
+      ...Object.keys(MarathonConfig.gravity).map(Number),
+    );
+
+    const newLevel =
+      Math.floor(this.lines / linesPerLevel) + MarathonConfig.startingLevel;
+
+    this.level = Math.min(newLevel, maxLevel);
   }
 
   addCombo() {
@@ -137,26 +149,20 @@ class MarathonStats {
       score: this.score,
       lines: this.lines,
       level: this.level,
-
       pieces: this.pps.getPieces(),
       pps: this.pps.getValue(),
       ppsFormatted: this.pps.getFormatted(),
-
       attack: this.apm.getAttack(),
       apm: this.apm.getValue(),
       apmFormatted: this.apm.getFormatted(),
-
       combo: this.combo,
       maxCombo: this.maxCombo,
-
       backToBack: this.backToBack,
       maxBackToBack: this.maxBackToBack,
-
       tSpins: this.tSpins,
       tSpinSingles: this.tSpinSingles,
       tSpinDoubles: this.tSpinDoubles,
       tSpinTriples: this.tSpinTriples,
-
       perfectClears: this.perfectClears,
     };
   }
@@ -164,21 +170,16 @@ class MarathonStats {
   reset() {
     this.score = 0;
     this.lines = 0;
-    this.level = 1;
-
+    this.level = MarathonConfig.startingLevel;
     this.combo = -1;
     this.maxCombo = 0;
-
     this.backToBack = 0;
     this.maxBackToBack = 0;
-
     this.tSpins = 0;
     this.tSpinSingles = 0;
     this.tSpinDoubles = 0;
     this.tSpinTriples = 0;
-
     this.perfectClears = 0;
-
     this.pps.reset();
     this.apm.reset();
   }

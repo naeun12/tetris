@@ -17,15 +17,7 @@ export default function Marathon() {
                 />
             </div>
 
-            <div className={styles.content}>
-                <div className={styles.rightPanel}>
-                    <MarathonStatsPanel
-                        stats={statsRef.current}
-                    />
-                </div>
-
-                <div className={styles.leftPanel}></div>
-            </div>
+            
         </div>
     );
 }

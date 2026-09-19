@@ -11,7 +11,7 @@ export const isB2BEligible = (clearType) => {
     return true;
   }
 
-  if (type.includes("SPIN")) {
+  if (type.startsWith("TSPIN")) {
     return true;
   }
 

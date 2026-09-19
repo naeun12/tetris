@@ -1,7 +1,8 @@
-import PieceAssetSelector from "../../../selector/PieceAssetSelector";
+import PiecesSelector from "./PiecesSelector";
+const piecesSelector = new PiecesSelector();
 const JPiece = {
   type: 'J',
-  asset: PieceAssetSelector,
+  asset: piecesSelector.select,
   color: '#2f6bff',
   shape: [
     [1, 0, 0],

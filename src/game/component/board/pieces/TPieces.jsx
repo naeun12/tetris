@@ -1,7 +1,8 @@
-import PieceAssetSelector from "../../../selector/PieceAssetSelector";
+import PiecesSelector from "./PiecesSelector";
+const piecesSelector = new PiecesSelector();
 const TPiece = {
   type: 'T',
-     asset: PieceAssetSelector,
+      asset: piecesSelector.select,
   color: '#b537f2',
   shape: [
     [0, 1, 0],

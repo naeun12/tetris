@@ -1,8 +1,19 @@
+/** @format */
+
 import { useEffect, useRef, useState, useCallback } from "react";
 
-import { playSfx } from "../audio/SfxPlayer";
+import {
+    playSfx,
+    playCharacterSound,
+} from "../audio/SfxPlayer";
+
 import { getControls } from "../gameSettings/ControlsSetting";
+
 import { Application } from "@pixi/react";
+
+import StatsPanel from "../stats/StatsPanel";
+
+import LevelIndicator from "./indicators/LevelIndicator";
 
 import {
     getLineAttack,
@@ -28,6 +39,7 @@ import {
 } from "./board/config/BoardConfig";
 
 import { PIECES } from "./board/pieces/Pieces";
+
 import PieceBag from "./board/pieces/PieceBag";
 
 import {
@@ -51,7 +63,17 @@ import NextBox from "./NextBox";
 
 import styles from "../../styles/gameComponent/GameBoard.module.css";
 
-const GameBoard = ({ stats = null }) => {
+const GameBoard = ({
+    stats = null,
+    mode = null,
+    config = null,
+}) => {
+    const [level, setLevel] = useState(
+        stats?.level ??
+            config?.startingLevel ??
+            1
+    );
+
     const bagRef = useRef(new PieceBag());
 
     const spawnPiece = useCallback((type) => {
@@ -68,25 +90,40 @@ const GameBoard = ({ stats = null }) => {
             rotation: "0",
             lastRotation: false,
             rotationDirection: 0,
+            rotationKick: [0, 0],
+            rotationKickIndex: 0,
         };
     }, []);
 
-    const [board, setBoard] = useState(createEmptyBoard);
+    const [board, setBoard] = useState(
+        createEmptyBoard
+    );
 
     const [piece, setPiece] = useState(() =>
-        spawnPiece(bagRef.current.next())
+        spawnPiece(
+            bagRef.current.next()
+        )
     );
 
     const [hold, setHold] = useState(null);
-    const [canHold, setCanHold] = useState(true);
-    const [gameOver, setGameOver] = useState(false);
-    const [lockTimer, setLockTimer] = useState(null);
+
+    const [canHold, setCanHold] =
+        useState(true);
+
+    const [gameOver, setGameOver] =
+        useState(false);
+
+    const [lockTimer, setLockTimer] =
+        useState(null);
 
     const boardRef = useRef(board);
     const pieceRef = useRef(piece);
 
-    const horizontalFrameRef = useRef(null);
-    const softDropFrameRef = useRef(null);
+    const horizontalFrameRef =
+        useRef(null);
+
+    const softDropFrameRef =
+        useRef(null);
 
     const softDropStateRef = useRef({
         active: false,
@@ -117,54 +154,65 @@ const GameBoard = ({ stats = null }) => {
         pieceRef.current = piece;
     }, [piece]);
 
-    const cancelHorizontalFrame = useCallback(() => {
-        if (horizontalFrameRef.current !== null) {
-            cancelAnimationFrame(
-                horizontalFrameRef.current
-            );
+    const cancelHorizontalFrame =
+        useCallback(() => {
+            if (
+                horizontalFrameRef.current !==
+                null
+            ) {
+                cancelAnimationFrame(
+                    horizontalFrameRef.current
+                );
 
-            horizontalFrameRef.current = null;
-        }
-    }, []);
+                horizontalFrameRef.current =
+                    null;
+            }
+        }, []);
 
-    const resetHorizontalState = useCallback(() => {
-        horizontalStateRef.current = {
-            direction: 0,
-            dasAt: 0,
-            arrAt: 0,
-            switching: false,
-            switchDirection: 0,
-            switchAt: 0,
-            wallReached: false,
-        };
-    }, []);
+    const resetHorizontalState =
+        useCallback(() => {
+            horizontalStateRef.current = {
+                direction: 0,
+                dasAt: 0,
+                arrAt: 0,
+                switching: false,
+                switchDirection: 0,
+                switchAt: 0,
+                wallReached: false,
+            };
+        }, []);
 
-    const clearHorizontalTimers = useCallback(() => {
-        cancelHorizontalFrame();
-        resetHorizontalState();
-    }, [
-        cancelHorizontalFrame,
-        resetHorizontalState,
-    ]);
+    const clearHorizontalTimers =
+        useCallback(() => {
+            cancelHorizontalFrame();
+            resetHorizontalState();
+        }, [
+            cancelHorizontalFrame,
+            resetHorizontalState,
+        ]);
 
-    const clearHandlingTimers = useCallback(() => {
-        clearHorizontalTimers();
+    const clearHandlingTimers =
+        useCallback(() => {
+            clearHorizontalTimers();
 
-        if (softDropFrameRef.current !== null) {
-            cancelAnimationFrame(
-                softDropFrameRef.current
-            );
+            if (
+                softDropFrameRef.current !==
+                null
+            ) {
+                cancelAnimationFrame(
+                    softDropFrameRef.current
+                );
 
-            softDropFrameRef.current = null;
-        }
+                softDropFrameRef.current =
+                    null;
+            }
 
-        softDropStateRef.current = {
-            active: false,
-            nextAt: 0,
-        };
-    }, [clearHorizontalTimers]);
-
-    const lockPiece = useCallback(
+            softDropStateRef.current = {
+                active: false,
+                nextAt: 0,
+            };
+        }, [clearHorizontalTimers]);
+const lockPiece = useCallback(
     (lockedPiece) => {
         if (gameOver) {
             return;
@@ -183,34 +231,79 @@ const GameBoard = ({ stats = null }) => {
             cleared,
         } = clearLines(merged);
 
+        const spinType = getSpinType(
+            currentBoard,
+            lockedPiece,
+            cleared
+        );
+
+        const isTSpin =
+            lockedPiece.type === "T" &&
+            spinType !== null &&
+            spinType.startsWith("TSPIN");
+
+        const isSpin =
+            spinType !== null &&
+            spinType.includes("SPIN");
+
+        if (isTSpin) {
+            playCharacterSound("tSpin");
+        } else if (cleared === 4) {
+            playCharacterSound("tetris");
+        } else if (cleared > 0) {
+            playSfx("attack");
+        }
+
         if (stats) {
             stats.addPiece(
                 lockedPiece
             );
 
-            const spinType =
-                getSpinType(
-                    currentBoard,
-                    lockedPiece,
-                    cleared
-                );
+            const currentLevel =
+                stats.level;
 
-            const isTSpin =
-                lockedPiece.type === "T" &&
-                spinType !== null &&
-                spinType.startsWith(
-                    "TSPIN"
-                );
+            let score = 0;
 
-            const isSpin =
-                spinType !== null &&
-                spinType.includes(
-                    "SPIN"
-                );
+            switch (cleared) {
+                case 1:
+                    score =
+                        100 *
+                        currentLevel;
+                    break;
+
+                case 2:
+                    score =
+                        300 *
+                        currentLevel;
+                    break;
+
+                case 3:
+                    score =
+                        500 *
+                        currentLevel;
+                    break;
+
+                case 4:
+                    score =
+                        800 *
+                        currentLevel;
+                    break;
+
+                default:
+                    score = 0;
+            }
+
+            if (score > 0) {
+                stats.addScore(score);
+            }
 
             if (cleared > 0) {
                 stats.addLines(
                     cleared
+                );
+
+                setLevel(
+                    stats.level
                 );
             }
 
@@ -246,10 +339,17 @@ const GameBoard = ({ stats = null }) => {
                         ? "TETRIS"
                         : `${cleared} LINE`;
 
-            if (
+            const isB2BClear =
                 clearType === "TETRIS" ||
-                spinType !== null
-            ) {
+                (
+                    spinType !== null &&
+                    spinType.startsWith(
+                        "TSPIN"
+                    ) &&
+                    cleared > 0
+                );
+
+            if (isB2BClear) {
                 const b2bState =
                     updateB2B(
                         stats.backToBack,
@@ -266,6 +366,24 @@ const GameBoard = ({ stats = null }) => {
             ) {
                 stats.resetBackToBack();
             }
+        }
+
+        const isPerfectClear =
+            clearedBoard.every(
+                (row) =>
+                    row.every(
+                        (cell) =>
+                            !cell
+                    )
+            );
+
+        if (
+            isPerfectClear &&
+            cleared > 0
+        ) {
+            playCharacterSound(
+                "perfectClear"
+            );
         }
 
         boardRef.current =
@@ -290,8 +408,15 @@ const GameBoard = ({ stats = null }) => {
             )
         ) {
             setGameOver(true);
+
+            playCharacterSound(
+                "gameOver"
+            );
+
             clearHandlingTimers();
+
             setLockTimer(null);
+
             return;
         }
 
@@ -336,8 +461,21 @@ const GameBoard = ({ stats = null }) => {
                 return false;
             }
 
-            pieceRef.current = moved;
-            setPiece(moved);
+            const movedPiece = {
+                ...moved,
+                lastRotation: false,
+                rotationDirection: 0,
+                rotationKick: [0, 0],
+                rotationKickIndex: 0,
+            };
+
+            pieceRef.current =
+                movedPiece;
+
+            setPiece(
+                movedPiece
+            );
+
             setLockTimer(null);
 
             return true;
@@ -360,26 +498,40 @@ const GameBoard = ({ stats = null }) => {
             let moved = false;
 
             while (true) {
-                const nextPiece = tryMove(
-                    currentBoard,
-                    currentPiece,
-                    direction,
-                    0
-                );
+                const nextPiece =
+                    tryMove(
+                        currentBoard,
+                        currentPiece,
+                        direction,
+                        0
+                    );
 
                 if (!nextPiece) {
                     break;
                 }
 
-                currentPiece = nextPiece;
+                currentPiece =
+                    nextPiece;
+
                 moved = true;
             }
 
             if (moved) {
-                pieceRef.current =
-                    currentPiece;
+                const movedPiece = {
+                    ...currentPiece,
+                    lastRotation: false,
+                    rotationDirection: 0,
+                    rotationKick: [0, 0],
+                    rotationKickIndex: 0,
+                };
 
-                setPiece(currentPiece);
+                pieceRef.current =
+                    movedPiece;
+
+                setPiece(
+                    movedPiece
+                );
+
                 setLockTimer(null);
             }
 
@@ -411,104 +563,134 @@ const GameBoard = ({ stats = null }) => {
         );
 
         if (moved) {
-            pieceRef.current = moved;
-            setPiece(moved);
+            const movedPiece = {
+                ...moved,
+                lastRotation: false,
+                rotationDirection: 0,
+                rotationKick: [0, 0],
+                rotationKickIndex: 0,
+            };
+
+            pieceRef.current =
+                movedPiece;
+
+            setPiece(
+                movedPiece
+            );
+
             setLockTimer(null);
 
             return true;
         }
 
-        setLockTimer((currentTimer) =>
-            currentTimer === null
-                ? Date.now()
-                : currentTimer
+        setLockTimer(
+            (currentTimer) =>
+                currentTimer === null
+                    ? Date.now()
+                    : currentTimer
         );
 
         return false;
     }, [gameOver]);
 
-    const startSoftDrop = useCallback(() => {
-        if (gameOver) {
-            return;
-        }
-
-        if (
-            softDropStateRef.current.active
-        ) {
-            return;
-        }
-
-        const sdf = Math.max(
-            1,
-            Math.min(
-                40,
-                Number(getSDF()) || 1
-            )
-        );
-
-        const gravitySpeed = Math.max(
-            TICK_MIN_MS,
-            TICK_BASE_MS
-        );
-
-        const interval =
-            sdf >= 40
-                ? 1
-                : Math.max(
-                      1,
-                      gravitySpeed / sdf
-                  );
-
-        softDropStateRef.current = {
-            active: true,
-            nextAt: performance.now(),
-        };
-
-        const loop = (time) => {
-            if (
-                !softDropStateRef.current
-                    .active ||
-                gameOver
-            ) {
-                softDropFrameRef.current =
-                    null;
-
+    const startSoftDrop = useCallback(
+        () => {
+            if (gameOver) {
                 return;
             }
 
             if (
-                time >=
                 softDropStateRef.current
-                    .nextAt
+                    .active
             ) {
-                softDrop();
-
-                softDropStateRef.current.nextAt =
-                    time + interval;
+                return;
             }
 
-            softDropFrameRef.current =
-                requestAnimationFrame(loop);
-        };
-
-        softDropFrameRef.current =
-            requestAnimationFrame(loop);
-    }, [gameOver, softDrop]);
-
-    const stopSoftDrop = useCallback(() => {
-        softDropStateRef.current.active =
-            false;
-
-        if (
-            softDropFrameRef.current !== null
-        ) {
-            cancelAnimationFrame(
-                softDropFrameRef.current
+            const sdf = Math.max(
+                1,
+                Math.min(
+                    40,
+                    Number(getSDF()) || 1
+                )
             );
 
-            softDropFrameRef.current = null;
-        }
-    }, []);
+            const gravitySpeed =
+                Math.max(
+                    TICK_MIN_MS,
+                    TICK_BASE_MS
+                );
+
+            const interval =
+                sdf >= 40
+                    ? 1
+                    : Math.max(
+                          1,
+                          gravitySpeed /
+                              sdf
+                      );
+
+            softDropStateRef.current = {
+                active: true,
+                nextAt:
+                    performance.now(),
+            };
+
+            const loop = (time) => {
+                if (
+                    !softDropStateRef.current
+                        .active ||
+                    gameOver
+                ) {
+                    softDropFrameRef.current =
+                        null;
+
+                    return;
+                }
+
+                if (
+                    time >=
+                    softDropStateRef.current
+                        .nextAt
+                ) {
+                    softDrop();
+
+                    softDropStateRef.current.nextAt =
+                        time + interval;
+                }
+
+                softDropFrameRef.current =
+                    requestAnimationFrame(
+                        loop
+                    );
+            };
+
+            softDropFrameRef.current =
+                requestAnimationFrame(
+                    loop
+                );
+        },
+        [gameOver, softDrop]
+    );
+
+    const stopSoftDrop = useCallback(
+        () => {
+            softDropStateRef.current.active =
+                false;
+
+            if (
+                softDropFrameRef.current !==
+                null
+            ) {
+                cancelAnimationFrame(
+                    softDropFrameRef.current
+                );
+
+                softDropFrameRef.current =
+                    null;
+            }
+        },
+        []
+    );
 
     const rotate = useCallback(
         (direction) => {
@@ -522,18 +704,24 @@ const GameBoard = ({ stats = null }) => {
             const currentPiece =
                 pieceRef.current;
 
-            const rotated = tryRotate(
-                currentBoard,
-                currentPiece,
-                direction
-            );
+            const rotated =
+                tryRotate(
+                    currentBoard,
+                    currentPiece,
+                    direction
+                );
 
             if (!rotated) {
                 return false;
             }
 
-            pieceRef.current = rotated;
-            setPiece(rotated);
+            pieceRef.current =
+                rotated;
+
+            setPiece(
+                rotated
+            );
+
             setLockTimer(null);
 
             return true;
@@ -569,9 +757,12 @@ const GameBoard = ({ stats = null }) => {
         };
 
         clearHandlingTimers();
+
         setLockTimer(null);
 
-        lockPiece(dropped);
+        lockPiece(
+            dropped
+        );
     }, [
         gameOver,
         clearHandlingTimers,
@@ -594,14 +785,15 @@ const GameBoard = ({ stats = null }) => {
         }
 
         clearHandlingTimers();
+
         setLockTimer(null);
+
+        playSfx("hold");
 
         const currentType =
             currentPiece.type;
 
         if (hold) {
-            playSfx("hold");
-
             const newPiece =
                 spawnPiece(hold);
 
@@ -614,18 +806,34 @@ const GameBoard = ({ stats = null }) => {
                 )
             ) {
                 setGameOver(true);
+
+                playCharacterSound(
+                    "gameOver"
+                );
+
+                playSfx(
+                    "gameOver"
+                );
+
                 clearHandlingTimers();
+
                 return;
             }
 
-            pieceRef.current = newPiece;
-            setPiece(newPiece);
+            pieceRef.current =
+                newPiece;
+
+            setPiece(
+                newPiece
+            );
         } else {
             const nextType =
                 bagRef.current.next();
 
             const newPiece =
-                spawnPiece(nextType);
+                spawnPiece(
+                    nextType
+                );
 
             if (
                 collides(
@@ -636,15 +844,32 @@ const GameBoard = ({ stats = null }) => {
                 )
             ) {
                 setGameOver(true);
+
+                playCharacterSound(
+                    "gameOver"
+                );
+
+                playSfx(
+                    "gameOver"
+                );
+
                 clearHandlingTimers();
+
                 return;
             }
 
-            pieceRef.current = newPiece;
-            setPiece(newPiece);
+            pieceRef.current =
+                newPiece;
+
+            setPiece(
+                newPiece
+            );
         }
 
-        setHold(currentType);
+        setHold(
+            currentType
+        );
+
         setCanHold(false);
     }, [
         canHold,
@@ -654,7 +879,9 @@ const GameBoard = ({ stats = null }) => {
         clearHandlingTimers,
     ]);
 
-    const tickRef = useRef(() => {});
+    const tickRef = useRef(
+        () => {}
+    );
 
     tickRef.current = () => {
         if (gameOver) {
@@ -675,14 +902,28 @@ const GameBoard = ({ stats = null }) => {
         );
 
         if (moved) {
-            pieceRef.current = moved;
-            setPiece(moved);
+            const movedPiece = {
+                ...moved,
+                lastRotation: false,
+                rotationDirection: 0,
+                rotationKick: [0, 0],
+                rotationKickIndex: 0,
+            };
+
+            pieceRef.current =
+                movedPiece;
+
+            setPiece(
+                movedPiece
+            );
+
             setLockTimer(null);
         } else {
-            setLockTimer((currentTimer) =>
-                currentTimer === null
-                    ? Date.now()
-                    : currentTimer
+            setLockTimer(
+                (currentTimer) =>
+                    currentTimer === null
+                        ? Date.now()
+                        : currentTimer
             );
         }
     };
@@ -692,19 +933,25 @@ const GameBoard = ({ stats = null }) => {
             return;
         }
 
-        const speed = Math.max(
-            TICK_MIN_MS,
-            TICK_BASE_MS
-        );
+        const speed =
+            config?.gravity?.[level] ??
+            TICK_BASE_MS;
 
         const id = setInterval(() => {
             tickRef.current();
-        }, speed);
+        }, Math.max(
+            TICK_MIN_MS,
+            speed
+        ));
 
         return () => {
             clearInterval(id);
         };
-    }, [gameOver]);
+    }, [
+        gameOver,
+        level,
+        config,
+    ]);
 
     useEffect(() => {
         if (
@@ -725,20 +972,33 @@ const GameBoard = ({ stats = null }) => {
             const currentPiece =
                 pieceRef.current;
 
-            const canMoveDown = tryMove(
-                currentBoard,
-                currentPiece,
-                0,
-                1
-            );
+            const canMoveDown =
+                tryMove(
+                    currentBoard,
+                    currentPiece,
+                    0,
+                    1
+                );
 
             if (!canMoveDown) {
-                lockPiece(currentPiece);
+                lockPiece(
+                    currentPiece
+                );
             } else {
-                pieceRef.current =
-                    canMoveDown;
+                const movedPiece = {
+                    ...canMoveDown,
+                    lastRotation: false,
+                    rotationDirection: 0,
+                    rotationKick: [0, 0],
+                    rotationKickIndex: 0,
+                };
 
-                setPiece(canMoveDown);
+                pieceRef.current =
+                    movedPiece;
+
+                setPiece(
+                    movedPiece
+                );
             }
 
             setLockTimer(null);
@@ -753,99 +1013,104 @@ const GameBoard = ({ stats = null }) => {
         lockPiece,
     ]);
 
-    const horizontalLoop = useCallback(
-        (time) => {
-            if (gameOver) {
-                horizontalFrameRef.current =
-                    null;
+    const horizontalLoop =
+        useCallback(
+            (time) => {
+                if (gameOver) {
+                    horizontalFrameRef.current =
+                        null;
 
-                return;
-            }
-
-            const state =
-                horizontalStateRef.current;
-
-            const direction =
-                state.direction;
-
-            if (!direction) {
-                horizontalFrameRef.current =
-                    null;
-
-                return;
-            }
-
-            const das = Math.max(
-                0,
-                Number(getDAS()) || 0
-            );
-
-            const arr = Math.max(
-                0,
-                Number(getARR()) || 0
-            );
-
-            const dcd = Math.max(
-                0,
-                Number(getDCD()) || 0
-            );
-
-            if (state.switching) {
-                if (
-                    time >=
-                    state.switchAt
-                ) {
-                    state.switching = false;
-
-                    state.direction =
-                        state.switchDirection;
-
-                    state.dasAt =
-                        time + das;
-
-                    state.arrAt =
-                        time + das;
-
-                    movePiece(
-                        state.direction,
-                        0
-                    );
+                    return;
                 }
-            } else if (
-                time >= state.dasAt
-            ) {
-                if (arr === 0) {
-                    moveToWall(direction);
-                } else if (
-                    time >= state.arrAt
-                ) {
-                    const moved =
+
+                const state =
+                    horizontalStateRef.current;
+
+                const direction =
+                    state.direction;
+
+                if (!direction) {
+                    horizontalFrameRef.current =
+                        null;
+
+                    return;
+                }
+
+                const das = Math.max(
+                    0,
+                    Number(getDAS()) || 0
+                );
+
+                const arr = Math.max(
+                    0,
+                    Number(getARR()) || 0
+                );
+
+                const dcd = Math.max(
+                    0,
+                    Number(getDCD()) || 0
+                );
+
+                if (state.switching) {
+                    if (
+                        time >=
+                        state.switchAt
+                    ) {
+                        state.switching =
+                            false;
+
+                        state.direction =
+                            state.switchDirection;
+
+                        state.dasAt =
+                            time + das;
+
+                        state.arrAt =
+                            time + das;
+
                         movePiece(
-                            direction,
+                            state.direction,
                             0
                         );
-
-                    if (!moved) {
-                        state.wallReached =
-                            true;
                     }
+                } else if (
+                    time >= state.dasAt
+                ) {
+                    if (arr === 0) {
+                        moveToWall(
+                            direction
+                        );
+                    } else if (
+                        time >=
+                        state.arrAt
+                    ) {
+                        const moved =
+                            movePiece(
+                                direction,
+                                0
+                            );
 
-                    state.arrAt =
-                        time + arr;
+                        if (!moved) {
+                            state.wallReached =
+                                true;
+                        }
+
+                        state.arrAt =
+                            time + arr;
+                    }
                 }
-            }
 
-            horizontalFrameRef.current =
-                requestAnimationFrame(
-                    horizontalLoop
-                );
-        },
-        [
-            gameOver,
-            movePiece,
-            moveToWall,
-        ]
-    );
+                horizontalFrameRef.current =
+                    requestAnimationFrame(
+                        horizontalLoop
+                    );
+            },
+            [
+                gameOver,
+                movePiece,
+                moveToWall,
+            ]
+        );
 
     const startHorizontalMovement =
         useCallback(
@@ -873,11 +1138,19 @@ const GameBoard = ({ stats = null }) => {
                 state.direction =
                     direction;
 
-                state.switching = false;
-                state.switchDirection = 0;
-                state.wallReached = false;
+                state.switching =
+                    false;
 
-                movePiece(direction, 0);
+                state.switchDirection =
+                    0;
+
+                state.wallReached =
+                    false;
+
+                movePiece(
+                    direction,
+                    0
+                );
 
                 state.dasAt =
                     now + das;
@@ -885,7 +1158,10 @@ const GameBoard = ({ stats = null }) => {
                 state.arrAt =
                     now +
                     das +
-                    Math.max(arr, 1);
+                    Math.max(
+                        arr,
+                        1
+                    );
 
                 cancelHorizontalFrame();
 
@@ -992,6 +1268,7 @@ const GameBoard = ({ stats = null }) => {
                     true;
 
                 startSoftDrop();
+
                 return;
             }
 
@@ -1062,19 +1339,28 @@ const GameBoard = ({ stats = null }) => {
                     heldKeysRef.current
                         .right
                 ) {
-                    const dcd = Math.max(
-                        0,
-                        Number(getDCD()) || 0
-                    );
+                    const dcd =
+                        Math.max(
+                            0,
+                            Number(
+                                getDCD()
+                            ) || 0
+                        );
 
                     const state =
                         horizontalStateRef.current;
 
                     if (dcd === 0) {
-                        state.direction = 1;
-                        state.switching = false;
+                        state.direction =
+                            1;
 
-                        movePiece(1, 0);
+                        state.switching =
+                            false;
+
+                        movePiece(
+                            1,
+                            0
+                        );
 
                         const now =
                             performance.now();
@@ -1135,19 +1421,28 @@ const GameBoard = ({ stats = null }) => {
                     heldKeysRef.current
                         .left
                 ) {
-                    const dcd = Math.max(
-                        0,
-                        Number(getDCD()) || 0
-                    );
+                    const dcd =
+                        Math.max(
+                            0,
+                            Number(
+                                getDCD()
+                            ) || 0
+                        );
 
                     const state =
                         horizontalStateRef.current;
 
                     if (dcd === 0) {
-                        state.direction = -1;
-                        state.switching = false;
+                        state.direction =
+                            -1;
 
-                        movePiece(-1, 0);
+                        state.switching =
+                            false;
+
+                        movePiece(
+                            -1,
+                            0
+                        );
 
                         const now =
                             performance.now();
@@ -1252,11 +1547,34 @@ const GameBoard = ({ stats = null }) => {
 
     return (
         <div className={styles.game}>
-            <div className={styles.holdArea}>
-                <HoldBox type={hold} />
+            <div
+                className={
+                    styles.holdArea
+                }
+            >
+                <HoldBox
+                    type={hold}
+                />
+
+                <StatsPanel
+                    mode={mode}
+                    stats={stats}
+                />
             </div>
 
-            <div className={styles.boardWrap}>
+            <div
+                className={
+                    styles.levelIndicator
+                }
+            >
+                <LevelIndicator />
+            </div>
+
+            <div
+                className={
+                    styles.boardWrap
+                }
+            >
                 <Application
                     width={
                         BOARD_WIDTH *
@@ -1279,9 +1597,13 @@ const GameBoard = ({ stats = null }) => {
                 </Application>
             </div>
 
-            <div className={styles.side}>
+            <div
+                className={styles.side}
+            >
                 <NextBox
-                    types={bagRef.current.peek(3)}
+                    types={bagRef.current.peek(
+                        5
+                    )}
                 />
             </div>
         </div>

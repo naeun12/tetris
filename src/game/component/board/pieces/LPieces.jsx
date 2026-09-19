@@ -1,11 +1,12 @@
 /** @format */
 
-import PieceAssetSelector from "../../../selector/PieceAssetSelector";
+import PiecesSelector from "./PiecesSelector";
+const piecesSelector = new PiecesSelector();
 
 const LPiece = {
     type: "L",
 
-    asset: PieceAssetSelector,
+    asset: piecesSelector.select,
 
     color: "#ff9f1c",
 

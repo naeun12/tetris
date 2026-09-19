@@ -1,5 +1,6 @@
 /** @format */
 import SfxAssetsModel from "../model/SfxAssetsModel";
+import CharacterData from "./CharacterData";
 
 const SfxAssetsData = {
   drop: new SfxAssetsModel(
