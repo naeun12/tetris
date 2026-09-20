@@ -27,10 +27,10 @@ const SfxAssetsData = {
     "/audio/sfx/default/rotation.mp3",
   ),
 
-  tetrisClear: new SfxAssetsModel(
+  lineClear: new SfxAssetsModel(
     "Default Sound",
     "Tetris Clear",
-    "/audio/sfx/default/tetris_clear.mp3",
+    "/audio/sfx/default/line_clear.mp3",
   ),
 };
 

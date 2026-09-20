@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 
+import BotAI from "../vsBot/VsBot1pps";
+
 import {
     playSfx,
     playCharacterSound,
@@ -16,13 +18,16 @@ import StatsPanel from "../stats/StatsPanel";
 import LevelIndicator from "./indicators/LevelIndicator";
 
 import {
-    getLineAttack,
-    getTSpinAttack,
-    getTSpinMiniAttack,
-    getSpinAttack,
+    calculateAttack,
+    getComboAttack,
 } from "../scoring/Attack";
 
 import { updateB2B } from "../scoring/BackToBack";
+
+import {
+    addGarbage,
+    getGarbageAmount,
+} from "../battle/GarbageSystem";
 
 import {
     BOARD_WIDTH,
@@ -67,6 +72,10 @@ const GameBoard = ({
     stats = null,
     mode = null,
     config = null,
+    side = "player",
+    incomingGarbage = [],
+    onAttack = null,
+    onGarbageApplied = null,
 }) => {
     const [level, setLevel] = useState(
         stats?.level ??
@@ -74,38 +83,57 @@ const GameBoard = ({
             1
     );
 
-    const bagRef = useRef(new PieceBag());
-
-    const spawnPiece = useCallback((type) => {
-        const piece = PIECES[type];
-
-        return {
-            type,
-            shape: piece.shape,
-            image: piece.image,
-            x: Math.floor(
-                (BOARD_WIDTH - piece.shape[0].length) / 2
-            ),
-            y: -1,
-            rotation: "0",
-            lastRotation: false,
-            rotationDirection: 0,
-            rotationKick: [0, 0],
-            rotationKickIndex: 0,
-        };
-    }, []);
-
     const [board, setBoard] = useState(
         createEmptyBoard
     );
 
-    const [piece, setPiece] = useState(() =>
-        spawnPiece(
-            bagRef.current.next()
-        )
+    const bagRef = useRef(
+        new PieceBag()
     );
 
-    const [hold, setHold] = useState(null);
+    const comboRef = useRef(-1);
+
+    const b2bRef = useRef(
+        stats?.backToBack ?? 0
+    );
+
+    const incomingGarbageRef =
+        useRef([]);
+
+    const spawnPiece = useCallback(
+        (type) => {
+            const piece = PIECES[type];
+
+            return {
+                type,
+                shape: piece.shape,
+                image: piece.image,
+                x: Math.floor(
+                    (BOARD_WIDTH -
+                        piece.shape[0]
+                            .length) /
+                        2
+                ),
+                y: -1,
+                rotation: "0",
+                lastRotation: false,
+                rotationDirection: 0,
+                rotationKick: [0, 0],
+                rotationKickIndex: 0,
+            };
+        },
+        []
+    );
+
+    const [piece, setPiece] =
+        useState(() =>
+            spawnPiece(
+                bagRef.current.next()
+            )
+        );
+
+    const [hold, setHold] =
+        useState(null);
 
     const [canHold, setCanHold] =
         useState(true);
@@ -116,8 +144,14 @@ const GameBoard = ({
     const [lockTimer, setLockTimer] =
         useState(null);
 
-    const boardRef = useRef(board);
-    const pieceRef = useRef(piece);
+    const boardRef =
+        useRef(board);
+
+    const pieceRef =
+        useRef(piece);
+
+    const botRef =
+        useRef(null);
 
     const horizontalFrameRef =
         useRef(null);
@@ -125,26 +159,29 @@ const GameBoard = ({
     const softDropFrameRef =
         useRef(null);
 
-    const softDropStateRef = useRef({
-        active: false,
-        nextAt: 0,
-    });
+    const softDropStateRef =
+        useRef({
+            active: false,
+            nextAt: 0,
+        });
 
-    const heldKeysRef = useRef({
-        left: false,
-        right: false,
-        down: false,
-    });
+    const heldKeysRef =
+        useRef({
+            left: false,
+            right: false,
+            down: false,
+        });
 
-    const horizontalStateRef = useRef({
-        direction: 0,
-        dasAt: 0,
-        arrAt: 0,
-        switching: false,
-        switchDirection: 0,
-        switchAt: 0,
-        wallReached: false,
-    });
+    const horizontalStateRef =
+        useRef({
+            direction: 0,
+            dasAt: 0,
+            arrAt: 0,
+            switching: false,
+            switchDirection: 0,
+            switchAt: 0,
+            wallReached: false,
+        });
 
     useEffect(() => {
         boardRef.current = board;
@@ -153,6 +190,51 @@ const GameBoard = ({
     useEffect(() => {
         pieceRef.current = piece;
     }, [piece]);
+
+    useEffect(() => {
+        if (stats?.level) {
+            setLevel(stats.level);
+        }
+    }, [stats?.level]);
+
+    useEffect(() => {
+        const queue =
+            Array.isArray(
+                incomingGarbage
+            )
+                ? incomingGarbage
+                      .map((batch) => ({
+                          amount: Math.max(
+                              0,
+                              Math.floor(
+                                  Number(
+                                      batch?.amount
+                                  ) || 0
+                              )
+                          ),
+                          hole: Math.max(
+                              0,
+                              Math.min(
+                                  BOARD_WIDTH -
+                                      1,
+                                  Math.floor(
+                                      Number(
+                                          batch?.hole
+                                      ) || 0
+                                  )
+                              ),
+                          ),
+                      }))
+                      .filter(
+                          (batch) =>
+                              batch.amount >
+                              0
+                      )
+                : [];
+
+        incomingGarbageRef.current =
+            queue;
+    }, [incomingGarbage]);
 
     const cancelHorizontalFrame =
         useCallback(() => {
@@ -212,316 +294,566 @@ const GameBoard = ({
                 nextAt: 0,
             };
         }, [clearHorizontalTimers]);
-const lockPiece = useCallback(
-    (lockedPiece) => {
-        if (gameOver) {
-            return;
-        }
 
-        const currentBoard =
-            boardRef.current;
-
-        const merged = mergePiece(
-            currentBoard,
-            lockedPiece
+    const isPerfectClearBoard =
+        useCallback(
+            (targetBoard) => {
+                return targetBoard.every(
+                    (row) =>
+                        row.every(
+                            (cell) => !cell
+                        )
+                );
+            },
+            []
         );
 
-        const {
-            board: clearedBoard,
-            cleared,
-        } = clearLines(merged);
-
-        const spinType = getSpinType(
-            currentBoard,
-            lockedPiece,
-            cleared
-        );
-
-        const isTSpin =
-            lockedPiece.type === "T" &&
-            spinType !== null &&
-            spinType.startsWith("TSPIN");
-
-        const isSpin =
-            spinType !== null &&
-            spinType.includes("SPIN");
-
-        if (isTSpin) {
-            playCharacterSound("tSpin");
-        } else if (cleared === 4) {
-            playCharacterSound("tetris");
-        } else if (cleared > 0) {
-            playSfx("attack");
-        }
-
-        if (stats) {
-            stats.addPiece(
-                lockedPiece
-            );
-
-            const currentLevel =
-                stats.level;
-
-            let score = 0;
-
-            switch (cleared) {
-                case 1:
-                    score =
-                        100 *
-                        currentLevel;
-                    break;
-
-                case 2:
-                    score =
-                        300 *
-                        currentLevel;
-                    break;
-
-                case 3:
-                    score =
-                        500 *
-                        currentLevel;
-                    break;
-
-                case 4:
-                    score =
-                        800 *
-                        currentLevel;
-                    break;
-
-                default:
-                    score = 0;
-            }
-
-            if (score > 0) {
-                stats.addScore(score);
-            }
-
-            if (cleared > 0) {
-                stats.addLines(
-                    cleared
-                );
-
-                setLevel(
-                    stats.level
-                );
-            }
-
-            let attack = 0;
-
-            if (isTSpin) {
-                attack =
-                    getTSpinAttack(
-                        cleared
-                    );
-            } else if (isSpin) {
-                attack =
-                    getSpinAttack(
-                        cleared
-                    );
-            } else {
-                attack =
-                    getLineAttack(
-                        cleared
-                    );
-            }
-
-            if (attack > 0) {
-                stats.addAttack(
-                    attack
-                );
-            }
-
-            const clearType =
-                spinType !== null
-                    ? spinType
-                    : cleared === 4
-                        ? "TETRIS"
-                        : `${cleared} LINE`;
-
-            const isB2BClear =
-                clearType === "TETRIS" ||
-                (
-                    spinType !== null &&
-                    spinType.startsWith(
-                        "TSPIN"
-                    ) &&
-                    cleared > 0
-                );
-
-            if (isB2BClear) {
-                const b2bState =
-                    updateB2B(
-                        stats.backToBack,
-                        clearType
-                    );
-
-                if (
-                    b2bState.active
-                ) {
-                    stats.addBackToBack();
-                }
-            } else if (
-                cleared > 0
-            ) {
-                stats.resetBackToBack();
-            }
-        }
-
-        const isPerfectClear =
-            clearedBoard.every(
-                (row) =>
-                    row.every(
-                        (cell) =>
-                            !cell
-                    )
-            );
-
-        if (
-            isPerfectClear &&
-            cleared > 0
-        ) {
-            playCharacterSound(
-                "perfectClear"
-            );
-        }
-
-        boardRef.current =
-            clearedBoard;
-
-        setBoard(
-            clearedBoard
-        );
-
-        const nextType =
-            bagRef.current.next();
-
-        const nextPiece =
-            spawnPiece(nextType);
-
-        if (
-            collides(
-                clearedBoard,
-                nextPiece.shape,
-                nextPiece.x,
-                nextPiece.y
-            )
-        ) {
+    const triggerGameOver =
+        useCallback(() => {
             setGameOver(true);
 
             playCharacterSound(
                 "gameOver"
             );
 
+            playSfx("gameOver");
+
             clearHandlingTimers();
 
             setLockTimer(null);
+        }, [clearHandlingTimers]);
 
-            return;
-        }
+    const applyIncomingGarbage =
+        useCallback(
+            (targetBoard) => {
+                const queue =
+                    Array.isArray(
+                        incomingGarbageRef.current
+                    )
+                        ? incomingGarbageRef.current
+                        : [];
 
-        pieceRef.current =
-            nextPiece;
+                const amount =
+                    getGarbageAmount(
+                        queue
+                    );
 
-        setPiece(
-            nextPiece
+                if (amount <= 0) {
+                    return {
+                        board: targetBoard,
+                        toppedOut: false,
+                        amount: 0,
+                    };
+                }
+
+                const result =
+                    addGarbage(
+                        targetBoard,
+                        queue
+                    );
+
+                incomingGarbageRef.current =
+                    [];
+
+                if (
+                    typeof onGarbageApplied ===
+                    "function"
+                ) {
+                    onGarbageApplied(
+                        result.amount
+                    );
+                }
+
+                return {
+                    board: result.board,
+                    toppedOut:
+                        result.toppedOut,
+                    amount:
+                        result.amount,
+                };
+            },
+            [onGarbageApplied]
         );
 
-        setCanHold(true);
-        setLockTimer(null);
-    },
-    [
-        gameOver,
-        spawnPiece,
-        clearHandlingTimers,
-        stats,
-    ]
-);
-
-    const movePiece = useCallback(
-        (dx, dy) => {
+    const lockPiece = useCallback(
+        (lockedPiece) => {
             if (gameOver) {
-                return false;
+                return;
             }
 
             const currentBoard =
                 boardRef.current;
 
-            const currentPiece =
-                pieceRef.current;
+            const merged =
+                mergePiece(
+                    currentBoard,
+                    lockedPiece
+                );
 
-            const moved = tryMove(
-                currentBoard,
-                currentPiece,
-                dx,
-                dy
+            const {
+                board: clearedBoard,
+                cleared,
+            } = clearLines(
+                merged
             );
 
-            if (!moved) {
-                return false;
+            const spinType =
+                getSpinType(
+                    currentBoard,
+                    lockedPiece,
+                    cleared
+                );
+
+            const isTSpin =
+                lockedPiece.type ===
+                    "T" &&
+                spinType !== null &&
+                spinType.startsWith(
+                    "TSPIN"
+                ) &&
+                !spinType.startsWith(
+                    "TSPINMINI"
+                );
+
+            const isTSpinMini =
+                lockedPiece.type ===
+                    "T" &&
+                spinType !== null &&
+                spinType.startsWith(
+                    "TSPINMINI"
+                );
+
+            const isSpin =
+                spinType !== null &&
+                spinType.includes(
+                    "SPIN"
+                ) &&
+                !isTSpin &&
+                !isTSpinMini;
+
+            const isDifficultClear =
+                cleared === 4 ||
+                (isTSpin &&
+                    cleared > 0) ||
+                (isTSpinMini &&
+                    cleared > 0) ||
+                (isSpin &&
+                    cleared > 0);
+
+            const isPerfectClear =
+                isPerfectClearBoard(
+                    clearedBoard
+                ) &&
+                cleared > 0;
+
+            if (isTSpinMini) {
+                playCharacterSound(
+                    "tSpin"
+                );
+            } else if (isTSpin) {
+                playCharacterSound(
+                    "tSpin"
+                );
+            } else if (isSpin) {
+                playCharacterSound(
+                    "special"
+                );
+            } else if (
+                cleared === 4
+            ) {
+                playCharacterSound(
+                    "tetris"
+                );
+            } else if (
+                cleared > 0
+            ) {
+                playSfx(
+                    "lineClear"
+                );
             }
 
-            const movedPiece = {
-                ...moved,
-                lastRotation: false,
-                rotationDirection: 0,
-                rotationKick: [0, 0],
-                rotationKickIndex: 0,
-            };
+            if (isPerfectClear) {
+                playCharacterSound(
+                    "perfectClear"
+                );
+            }
+
+            let currentCombo;
+
+            if (cleared > 0) {
+                comboRef.current += 1;
+
+                currentCombo =
+                    comboRef.current;
+            } else {
+                comboRef.current = -1;
+
+                currentCombo = -1;
+            }
+
+            const previousB2B =
+                b2bRef.current > 0;
+
+            let nextB2B =
+                previousB2B;
+
+            if (isDifficultClear) {
+                const b2bState =
+                    updateB2B(
+                        previousB2B,
+                        spinType !== null
+                            ? spinType
+                            : cleared === 4
+                            ? "TETRIS"
+                            : "SPECIAL"
+                    );
+
+                nextB2B =
+                    b2bState?.active
+                        ? Math.max(
+                              1,
+                              b2bState.count ??
+                                  b2bRef.current +
+                                      1
+                          )
+                        : 1;
+
+                b2bRef.current =
+                    nextB2B;
+
+                if (
+                    stats &&
+                    typeof stats.addBackToBack ===
+                        "function"
+                ) {
+                    stats.addBackToBack();
+                }
+            } else if (
+                cleared > 0
+            ) {
+                b2bRef.current = 0;
+
+                if (
+                    stats &&
+                    typeof stats.resetBackToBack ===
+                        "function"
+                ) {
+                    stats.resetBackToBack();
+                }
+            }
+
+            const attack =
+                calculateAttack({
+                    lines: cleared,
+                    tSpin: isTSpin,
+                    tSpinMini:
+                        isTSpinMini,
+                    spin: isSpin,
+                    combo: currentCombo,
+                    perfectClear:
+                        isPerfectClear,
+                    b2b:
+                        previousB2B &&
+                        isDifficultClear,
+                });
+
+            if (stats) {
+                stats.addPiece(
+                    lockedPiece
+                );
+
+                const currentLevel =
+                    stats.level;
+
+                let score = 0;
+
+                if (isTSpinMini) {
+                    switch (cleared) {
+                        case 0:
+                            score =
+                                100 *
+                                currentLevel;
+                            break;
+
+                        case 1:
+                            score =
+                                200 *
+                                currentLevel;
+                            break;
+
+                        default:
+                            score = 0;
+                    }
+                } else if (
+                    isTSpin
+                ) {
+                    switch (cleared) {
+                        case 0:
+                            score =
+                                400 *
+                                currentLevel;
+                            break;
+
+                        case 1:
+                            score =
+                                800 *
+                                currentLevel;
+                            break;
+
+                        case 2:
+                            score =
+                                1200 *
+                                currentLevel;
+                            break;
+
+                        case 3:
+                            score =
+                                1600 *
+                                currentLevel;
+                            break;
+
+                        default:
+                            score = 0;
+                    }
+                } else if (
+                    isSpin
+                ) {
+                    switch (cleared) {
+                        case 0:
+                            score =
+                                100 *
+                                currentLevel;
+                            break;
+
+                        case 1:
+                            score =
+                                200 *
+                                currentLevel;
+                            break;
+
+                        case 2:
+                            score =
+                                400 *
+                                currentLevel;
+                            break;
+
+                        case 3:
+                            score =
+                                600 *
+                                currentLevel;
+                            break;
+
+                        case 4:
+                            score =
+                                800 *
+                                currentLevel;
+                            break;
+
+                        default:
+                            score = 0;
+                    }
+                } else {
+                    switch (cleared) {
+                        case 1:
+                            score =
+                                100 *
+                                currentLevel;
+                            break;
+
+                        case 2:
+                            score =
+                                300 *
+                                currentLevel;
+                            break;
+
+                        case 3:
+                            score =
+                                500 *
+                                currentLevel;
+                            break;
+
+                        case 4:
+                            score =
+                                800 *
+                                currentLevel;
+                            break;
+
+                        default:
+                            score = 0;
+                    }
+                }
+
+                const comboBonus =
+                    getComboAttack(
+                        currentCombo
+                    );
+
+                score +=
+                    comboBonus *
+                    50 *
+                    currentLevel;
+
+                if (isPerfectClear) {
+                    score +=
+                        3500 *
+                        currentLevel;
+                }
+
+                if (
+                    previousB2B &&
+                    isDifficultClear &&
+                    attack > 0
+                ) {
+                    score +=
+                        50 *
+                        currentLevel;
+                }
+
+                if (score > 0) {
+                    stats.addScore(
+                        score
+                    );
+                }
+
+                if (cleared > 0) {
+                    stats.addLines(
+                        cleared
+                    );
+
+                    setLevel(
+                        stats.level
+                    );
+                }
+
+                if (
+                    attack > 0 &&
+                    typeof stats.addAttack ===
+                        "function"
+                ) {
+                    stats.addAttack(
+                        attack
+                    );
+                }
+            }
+
+            if (
+                attack > 0 &&
+                typeof onAttack ===
+                    "function"
+            ) {
+                const attackResult =
+                    onAttack(attack);
+
+                if (
+                    attackResult &&
+                    Array.isArray(
+                        attackResult.queue
+                    )
+                ) {
+                    incomingGarbageRef.current =
+                        attackResult.queue;
+                }
+            }
+
+            const garbageResult =
+                applyIncomingGarbage(
+                    clearedBoard
+                );
+
+            const nextBoard =
+                garbageResult.board;
+
+            boardRef.current =
+                nextBoard;
+
+            setBoard(
+                nextBoard
+            );
+
+            if (
+                garbageResult.toppedOut
+            ) {
+                triggerGameOver();
+                return;
+            }
+
+            const nextType =
+                bagRef.current.next();
+
+            const nextPiece =
+                spawnPiece(
+                    nextType
+                );
+
+            if (
+                collides(
+                    nextBoard,
+                    nextPiece.shape,
+                    nextPiece.x,
+                    nextPiece.y
+                )
+            ) {
+                triggerGameOver();
+                return;
+            }
 
             pieceRef.current =
-                movedPiece;
+                nextPiece;
 
             setPiece(
-                movedPiece
+                nextPiece
             );
 
-            setLockTimer(null);
+            setCanHold(true);
 
-            return true;
+            setLockTimer(null);
         },
-        [gameOver]
+        [
+            gameOver,
+            spawnPiece,
+            stats,
+            isPerfectClearBoard,
+            onAttack,
+            applyIncomingGarbage,
+            triggerGameOver,
+        ]
     );
 
-    const moveToWall = useCallback(
-        (direction) => {
-            if (gameOver) {
-                return false;
-            }
+    const movePiece =
+        useCallback(
+            (dx, dy) => {
+                if (gameOver) {
+                    return false;
+                }
 
-            const currentBoard =
-                boardRef.current;
+                const currentBoard =
+                    boardRef.current;
 
-            let currentPiece =
-                pieceRef.current;
+                const currentPiece =
+                    pieceRef.current;
 
-            let moved = false;
-
-            while (true) {
-                const nextPiece =
+                const moved =
                     tryMove(
                         currentBoard,
                         currentPiece,
-                        direction,
-                        0
+                        dx,
+                        dy
                     );
 
-                if (!nextPiece) {
-                    break;
+                if (!moved) {
+                    return false;
                 }
 
-                currentPiece =
-                    nextPiece;
-
-                moved = true;
-            }
-
-            if (moved) {
                 const movedPiece = {
-                    ...currentPiece,
-                    lastRotation: false,
-                    rotationDirection: 0,
-                    rotationKick: [0, 0],
+                    ...moved,
+                    lastRotation:
+                        false,
+                    rotationDirection:
+                        0,
+                    rotationKick: [
+                        0,
+                        0,
+                    ],
                     rotationKickIndex: 0,
                 };
 
@@ -533,68 +865,137 @@ const lockPiece = useCallback(
                 );
 
                 setLockTimer(null);
+
+                return true;
+            },
+            [gameOver]
+        );
+
+    const moveToWall =
+        useCallback(
+            (direction) => {
+                if (gameOver) {
+                    return false;
+                }
+
+                const currentBoard =
+                    boardRef.current;
+
+                let currentPiece =
+                    pieceRef.current;
+
+                let moved = false;
+
+                while (true) {
+                    const nextPiece =
+                        tryMove(
+                            currentBoard,
+                            currentPiece,
+                            direction,
+                            0
+                        );
+
+                    if (!nextPiece) {
+                        break;
+                    }
+
+                    currentPiece =
+                        nextPiece;
+
+                    moved = true;
+                }
+
+                if (moved) {
+                    const movedPiece = {
+                        ...currentPiece,
+                        lastRotation:
+                            false,
+                        rotationDirection:
+                            0,
+                        rotationKick: [
+                            0,
+                            0,
+                        ],
+                        rotationKickIndex: 0,
+                    };
+
+                    pieceRef.current =
+                        movedPiece;
+
+                    setPiece(
+                        movedPiece
+                    );
+
+                    setLockTimer(null);
+                }
+
+                return moved;
+            },
+            [gameOver]
+        );
+
+    const softDrop =
+        useCallback(() => {
+            if (gameOver) {
+                return false;
             }
 
-            return moved;
-        },
-        [gameOver]
-    );
+            const currentBoard =
+                boardRef.current;
 
-    const softDrop = useCallback(() => {
-        if (gameOver) {
-            return false;
-        }
+            const currentPiece =
+                pieceRef.current;
 
-        const currentBoard =
-            boardRef.current;
+            if (!currentPiece) {
+                return false;
+            }
 
-        const currentPiece =
-            pieceRef.current;
+            const moved =
+                tryMove(
+                    currentBoard,
+                    currentPiece,
+                    0,
+                    1
+                );
 
-        if (!currentPiece) {
-            return false;
-        }
+            if (moved) {
+                const movedPiece = {
+                    ...moved,
+                    lastRotation:
+                        false,
+                    rotationDirection:
+                        0,
+                    rotationKick: [
+                        0,
+                        0,
+                    ],
+                    rotationKickIndex: 0,
+                };
 
-        const moved = tryMove(
-            currentBoard,
-            currentPiece,
-            0,
-            1
-        );
+                pieceRef.current =
+                    movedPiece;
 
-        if (moved) {
-            const movedPiece = {
-                ...moved,
-                lastRotation: false,
-                rotationDirection: 0,
-                rotationKick: [0, 0],
-                rotationKickIndex: 0,
-            };
+                setPiece(
+                    movedPiece
+                );
 
-            pieceRef.current =
-                movedPiece;
+                setLockTimer(null);
 
-            setPiece(
-                movedPiece
+                return true;
+            }
+
+            setLockTimer(
+                (currentTimer) =>
+                    currentTimer === null
+                        ? Date.now()
+                        : currentTimer
             );
 
-            setLockTimer(null);
+            return false;
+        }, [gameOver]);
 
-            return true;
-        }
-
-        setLockTimer(
-            (currentTimer) =>
-                currentTimer === null
-                    ? Date.now()
-                    : currentTimer
-        );
-
-        return false;
-    }, [gameOver]);
-
-    const startSoftDrop = useCallback(
-        () => {
+    const startSoftDrop =
+        useCallback(() => {
             if (gameOver) {
                 return;
             }
@@ -610,7 +1011,8 @@ const lockPiece = useCallback(
                 1,
                 Math.min(
                     40,
-                    Number(getSDF()) || 1
+                    Number(getSDF()) ||
+                        1
                 )
             );
 
@@ -629,16 +1031,17 @@ const lockPiece = useCallback(
                               sdf
                       );
 
-            softDropStateRef.current = {
-                active: true,
-                nextAt:
-                    performance.now(),
-            };
+            softDropStateRef.current =
+                {
+                    active: true,
+                    nextAt:
+                        performance.now(),
+                };
 
             const loop = (time) => {
                 if (
-                    !softDropStateRef.current
-                        .active ||
+                    !softDropStateRef
+                        .current.active ||
                     gameOver
                 ) {
                     softDropFrameRef.current =
@@ -649,13 +1052,15 @@ const lockPiece = useCallback(
 
                 if (
                     time >=
-                    softDropStateRef.current
+                    softDropStateRef
+                        .current
                         .nextAt
                 ) {
                     softDrop();
 
                     softDropStateRef.current.nextAt =
-                        time + interval;
+                        time +
+                        interval;
                 }
 
                 softDropFrameRef.current =
@@ -668,12 +1073,10 @@ const lockPiece = useCallback(
                 requestAnimationFrame(
                     loop
                 );
-        },
-        [gameOver, softDrop]
-    );
+        }, [gameOver, softDrop]);
 
-    const stopSoftDrop = useCallback(
-        () => {
+    const stopSoftDrop =
+        useCallback(() => {
             softDropStateRef.current.active =
                 false;
 
@@ -688,14 +1091,50 @@ const lockPiece = useCallback(
                 softDropFrameRef.current =
                     null;
             }
-        },
-        []
-    );
+        }, []);
 
-    const rotate = useCallback(
-        (direction) => {
+    const rotate =
+        useCallback(
+            (direction) => {
+                if (gameOver) {
+                    return false;
+                }
+
+                const currentBoard =
+                    boardRef.current;
+
+                const currentPiece =
+                    pieceRef.current;
+
+                const rotated =
+                    tryRotate(
+                        currentBoard,
+                        currentPiece,
+                        direction
+                    );
+
+                if (!rotated) {
+                    return false;
+                }
+
+                pieceRef.current =
+                    rotated;
+
+                setPiece(
+                    rotated
+                );
+
+                setLockTimer(null);
+
+                return true;
+            },
+            [gameOver]
+        );
+
+    const hardDrop =
+        useCallback(() => {
             if (gameOver) {
-                return false;
+                return;
             }
 
             const currentBoard =
@@ -704,184 +1143,128 @@ const lockPiece = useCallback(
             const currentPiece =
                 pieceRef.current;
 
-            const rotated =
-                tryRotate(
-                    currentBoard,
-                    currentPiece,
-                    direction
-                );
-
-            if (!rotated) {
-                return false;
+            if (!currentPiece) {
+                return;
             }
 
-            pieceRef.current =
-                rotated;
+            playSfx("drop");
 
-            setPiece(
-                rotated
-            );
+            const y =
+                getDropY(
+                    currentBoard,
+                    currentPiece
+                );
+
+            const dropped = {
+                ...currentPiece,
+                y,
+            };
+
+            clearHandlingTimers();
 
             setLockTimer(null);
 
-            return true;
-        },
-        [gameOver]
-    );
+            lockPiece(
+                dropped
+            );
+        }, [
+            gameOver,
+            clearHandlingTimers,
+            lockPiece,
+        ]);
 
-    const hardDrop = useCallback(() => {
-        if (gameOver) {
-            return;
-        }
-
-        const currentBoard =
-            boardRef.current;
-
-        const currentPiece =
-            pieceRef.current;
-
-        if (!currentPiece) {
-            return;
-        }
-
-        playSfx("drop");
-
-        const y = getDropY(
-            currentBoard,
-            currentPiece
-        );
-
-        const dropped = {
-            ...currentPiece,
-            y,
-        };
-
-        clearHandlingTimers();
-
-        setLockTimer(null);
-
-        lockPiece(
-            dropped
-        );
-    }, [
-        gameOver,
-        clearHandlingTimers,
-        lockPiece,
-    ]);
-
-    const holdPiece = useCallback(() => {
-        if (
-            canHold === false ||
-            gameOver
-        ) {
-            return;
-        }
-
-        const currentPiece =
-            pieceRef.current;
-
-        if (!currentPiece) {
-            return;
-        }
-
-        clearHandlingTimers();
-
-        setLockTimer(null);
-
-        playSfx("hold");
-
-        const currentType =
-            currentPiece.type;
-
-        if (hold) {
-            const newPiece =
-                spawnPiece(hold);
-
+    const holdPiece =
+        useCallback(() => {
             if (
-                collides(
-                    boardRef.current,
-                    newPiece.shape,
-                    newPiece.x,
-                    newPiece.y
-                )
+                canHold === false ||
+                gameOver
             ) {
-                setGameOver(true);
-
-                playCharacterSound(
-                    "gameOver"
-                );
-
-                playSfx(
-                    "gameOver"
-                );
-
-                clearHandlingTimers();
-
                 return;
             }
 
-            pieceRef.current =
-                newPiece;
+            const currentPiece =
+                pieceRef.current;
 
-            setPiece(
-                newPiece
-            );
-        } else {
-            const nextType =
-                bagRef.current.next();
-
-            const newPiece =
-                spawnPiece(
-                    nextType
-                );
-
-            if (
-                collides(
-                    boardRef.current,
-                    newPiece.shape,
-                    newPiece.x,
-                    newPiece.y
-                )
-            ) {
-                setGameOver(true);
-
-                playCharacterSound(
-                    "gameOver"
-                );
-
-                playSfx(
-                    "gameOver"
-                );
-
-                clearHandlingTimers();
-
+            if (!currentPiece) {
                 return;
             }
 
-            pieceRef.current =
-                newPiece;
+            clearHandlingTimers();
 
-            setPiece(
-                newPiece
+            setLockTimer(null);
+
+            playSfx("hold");
+
+            const currentType =
+                currentPiece.type;
+
+            if (hold) {
+                const newPiece =
+                    spawnPiece(hold);
+
+                if (
+                    collides(
+                        boardRef.current,
+                        newPiece.shape,
+                        newPiece.x,
+                        newPiece.y
+                    )
+                ) {
+                    triggerGameOver();
+                    return;
+                }
+
+                pieceRef.current =
+                    newPiece;
+
+                setPiece(
+                    newPiece
+                );
+            } else {
+                const nextType =
+                    bagRef.current.next();
+
+                const newPiece =
+                    spawnPiece(
+                        nextType
+                    );
+
+                if (
+                    collides(
+                        boardRef.current,
+                        newPiece.shape,
+                        newPiece.x,
+                        newPiece.y
+                    )
+                ) {
+                    triggerGameOver();
+                    return;
+                }
+
+                pieceRef.current =
+                    newPiece;
+
+                setPiece(
+                    newPiece
+                );
+            }
+
+            setHold(
+                currentType
             );
-        }
 
-        setHold(
-            currentType
-        );
+            setCanHold(false);
+        }, [
+            canHold,
+            gameOver,
+            hold,
+            spawnPiece,
+            clearHandlingTimers,
+            triggerGameOver,
+        ]);
 
-        setCanHold(false);
-    }, [
-        canHold,
-        gameOver,
-        hold,
-        spawnPiece,
-        clearHandlingTimers,
-    ]);
-
-    const tickRef = useRef(
-        () => {}
-    );
+    const tickRef =
+        useRef(() => {});
 
     tickRef.current = () => {
         if (gameOver) {
@@ -894,19 +1277,25 @@ const lockPiece = useCallback(
         const currentPiece =
             pieceRef.current;
 
-        const moved = tryMove(
-            currentBoard,
-            currentPiece,
-            0,
-            1
-        );
+        const moved =
+            tryMove(
+                currentBoard,
+                currentPiece,
+                0,
+                1
+            );
 
         if (moved) {
             const movedPiece = {
                 ...moved,
-                lastRotation: false,
-                rotationDirection: 0,
-                rotationKick: [0, 0],
+                lastRotation:
+                    false,
+                rotationDirection:
+                    0,
+                rotationKick: [
+                    0,
+                    0,
+                ],
                 rotationKickIndex: 0,
             };
 
@@ -937,12 +1326,13 @@ const lockPiece = useCallback(
             config?.gravity?.[level] ??
             TICK_BASE_MS;
 
-        const id = setInterval(() => {
-            tickRef.current();
-        }, Math.max(
-            TICK_MIN_MS,
-            speed
-        ));
+        const id =
+            setInterval(() => {
+                tickRef.current();
+            }, Math.max(
+                TICK_MIN_MS,
+                speed
+            ));
 
         return () => {
             clearInterval(id);
@@ -961,48 +1351,54 @@ const lockPiece = useCallback(
             return;
         }
 
-        const id = setTimeout(() => {
-            if (gameOver) {
-                return;
-            }
+        const id =
+            setTimeout(() => {
+                if (gameOver) {
+                    return;
+                }
 
-            const currentBoard =
-                boardRef.current;
+                const currentBoard =
+                    boardRef.current;
 
-            const currentPiece =
-                pieceRef.current;
+                const currentPiece =
+                    pieceRef.current;
 
-            const canMoveDown =
-                tryMove(
-                    currentBoard,
-                    currentPiece,
-                    0,
-                    1
-                );
+                const canMoveDown =
+                    tryMove(
+                        currentBoard,
+                        currentPiece,
+                        0,
+                        1
+                    );
 
-            if (!canMoveDown) {
-                lockPiece(
-                    currentPiece
-                );
-            } else {
-                const movedPiece = {
-                    ...canMoveDown,
-                    lastRotation: false,
-                    rotationDirection: 0,
-                    rotationKick: [0, 0],
-                    rotationKickIndex: 0,
-                };
+                if (!canMoveDown) {
+                    lockPiece(
+                        currentPiece
+                    );
+                } else {
+                    const movedPiece = {
+                        ...canMoveDown,
+                        lastRotation:
+                            false,
+                        rotationDirection:
+                            0,
+                        rotationKick: [
+                            0,
+                            0,
+                        ],
+                        rotationKickIndex: 0,
+                    };
 
-                pieceRef.current =
-                    movedPiece;
+                    pieceRef.current =
+                        movedPiece;
 
-                setPiece(
-                    movedPiece
-                );
-            }
+                    setPiece(
+                        movedPiece
+                    );
+                }
 
-            setLockTimer(null);
-        }, LOCK_DELAY_MS);
+                setLockTimer(null);
+            }, LOCK_DELAY_MS);
 
         return () => {
             clearTimeout(id);
@@ -1038,17 +1434,14 @@ const lockPiece = useCallback(
 
                 const das = Math.max(
                     0,
-                    Number(getDAS()) || 0
+                    Number(getDAS()) ||
+                        0
                 );
 
                 const arr = Math.max(
                     0,
-                    Number(getARR()) || 0
-                );
-
-                const dcd = Math.max(
-                    0,
-                    Number(getDCD()) || 0
+                    Number(getARR()) ||
+                        0
                 );
 
                 if (state.switching) {
@@ -1074,7 +1467,8 @@ const lockPiece = useCallback(
                         );
                     }
                 } else if (
-                    time >= state.dasAt
+                    time >=
+                    state.dasAt
                 ) {
                     if (arr === 0) {
                         moveToWall(
@@ -1124,12 +1518,14 @@ const lockPiece = useCallback(
 
                 const das = Math.max(
                     0,
-                    Number(getDAS()) || 0
+                    Number(getDAS()) ||
+                        0
                 );
 
                 const arr = Math.max(
                     0,
-                    Number(getARR()) || 0
+                    Number(getARR()) ||
+                        0
                 );
 
                 const state =
@@ -1180,6 +1576,13 @@ const lockPiece = useCallback(
 
     useEffect(() => {
         const onKeyDown = (e) => {
+            if (
+                mode === "vs" &&
+                side !== "player"
+            ) {
+                return;
+            }
+
             const controls =
                 getControls();
 
@@ -1321,6 +1724,13 @@ const lockPiece = useCallback(
         };
 
         const onKeyUp = (e) => {
+            if (
+                mode === "vs" &&
+                side !== "player"
+            ) {
+                return;
+            }
+
             const controls =
                 getControls();
 
@@ -1404,6 +1814,7 @@ const lockPiece = useCallback(
                     }
                 } else {
                     resetHorizontalState();
+
                     cancelHorizontalFrame();
                 }
 
@@ -1486,6 +1897,7 @@ const lockPiece = useCallback(
                     }
                 } else {
                     resetHorizontalState();
+
                     cancelHorizontalFrame();
                 }
 
@@ -1527,6 +1939,8 @@ const lockPiece = useCallback(
             clearHandlingTimers();
         };
     }, [
+        mode,
+        side,
         gameOver,
         startHorizontalMovement,
         startSoftDrop,
@@ -1540,13 +1954,79 @@ const lockPiece = useCallback(
         clearHandlingTimers,
     ]);
 
-    const ghostY = getDropY(
-        board,
-        piece
-    );
+    useEffect(() => {
+        if (
+            mode !== "vs" ||
+            side !== "enemy" ||
+            gameOver
+        ) {
+            if (botRef.current) {
+                botRef.current.stop();
+                botRef.current =
+                    null;
+            }
+
+            return;
+        }
+
+        const bot = new BotAI({
+            pps: 1,
+
+            getBoard: () =>
+                boardRef.current,
+
+            getPiece: () =>
+                pieceRef.current,
+
+            rotate: (direction) => {
+                rotate(direction);
+            },
+
+            movePiece: (dx, dy) => {
+                movePiece(
+                    dx,
+                    dy
+                );
+            },
+
+            hardDrop: () => {
+                hardDrop();
+            },
+        });
+
+        botRef.current = bot;
+
+        bot.start();
+
+        return () => {
+            bot.stop();
+
+            if (
+                botRef.current === bot
+            ) {
+                botRef.current =
+                    null;
+            }
+        };
+    }, [
+        mode,
+        side,
+        gameOver,
+        rotate,
+        movePiece,
+        hardDrop,
+    ]);
+
+    const ghostY =
+        getDropY(
+            board,
+            piece
+        );
 
     return (
-        <div className={styles.game}>
+        <div
+            className={styles.game}
+        >
             <div
                 className={
                     styles.holdArea
@@ -1593,12 +2073,16 @@ const lockPiece = useCallback(
                         piece={piece}
                         ghostY={ghostY}
                         stats={stats}
+                        mode={mode}
+                        side={side}
                     />
                 </Application>
             </div>
 
             <div
-                className={styles.side}
+                className={
+                    styles.side
+                }
             >
                 <NextBox
                     types={bagRef.current.peek(

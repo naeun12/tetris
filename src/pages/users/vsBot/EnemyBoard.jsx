@@ -1,4 +1,3 @@
-
 /** @format */
 
 import { useEffect, useState } from "react";
@@ -73,7 +72,7 @@ const Board = ({
 
     const cells = [];
 
-    const occupied = new Set();
+    const lockedCells = new Set();
     const activeCells = new Set();
     const ghostCells = new Set();
 
@@ -97,18 +96,28 @@ const Board = ({
                     return;
                 }
 
-                const key = `${x}-${y}`;
+                const positionKey = `${x}-${y}`;
 
-                occupied.add(key);
+                if (lockedCells.has(positionKey)) {
+                    return;
+                }
+
+                lockedCells.add(positionKey);
+
+                const type =
+                    typeof cell === "string"
+                        ? cell
+                        : cell?.type;
+
+                if (!type) {
+                    return;
+                }
 
                 cells.push({
                     key: `b-${x}-${y}`,
                     x,
                     y,
-                    type:
-                        typeof cell === "string"
-                            ? cell
-                            : cell.type,
+                    type,
                     locked: true,
                 });
             });
@@ -172,17 +181,17 @@ const Board = ({
                     return;
                 }
 
-                const key = `${x}-${y}`;
+                const positionKey = `${x}-${y}`;
 
                 if (
-                    occupied.has(key) ||
-                    activeCells.has(key) ||
-                    ghostCells.has(key)
+                    lockedCells.has(positionKey) ||
+                    activeCells.has(positionKey) ||
+                    ghostCells.has(positionKey)
                 ) {
                     return;
                 }
 
-                ghostCells.add(key);
+                ghostCells.add(positionKey);
 
                 cells.push({
                     key: `g-${x}-${y}-${piece.type}`,
@@ -217,6 +226,14 @@ const Board = ({
                     x >= BOARD_WIDTH ||
                     y < 0 ||
                     y >= BOARD_HEIGHT
+                ) {
+                    return;
+                }
+
+                const positionKey = `${x}-${y}`;
+
+                if (
+                    activeCells.has(positionKey) === false
                 ) {
                     return;
                 }
@@ -354,5 +371,4 @@ const Board = ({
 };
 
 export default Board;
-
 

@@ -1,31 +1,31 @@
 /** @format */
 
 export const DEFAULT_HANDLING = {
-  arr: 0,
-  das: 100,
-  dcd: 50,
-  sdf: 20,
+  arr: 0, // Auto Repeat Rate (in frames). 0 = instant / teleports to wall
+  das: 10, // Delayed Auto Shift (in frames)
+  dcd: 0, // DAS Cut Delay (in frames)
+  sdf: 40, // Soft Drop Factor (multiplier, e.g., 40x or Infinity)
 };
 
 export const HANDLING_LIMITS = {
   arr: {
     min: 0,
-    max: 100,
+    max: 40, // Max frames typically capped around 40f (~667ms)
   },
 
   das: {
     min: 0,
-    max: 1000,
+    max: 200, // Frames
   },
 
   dcd: {
     min: 0,
-    max: 100,
+    max: 40, // Frames
   },
 
   sdf: {
     min: 1,
-    max: 40,
+    max: 100, // Multiplier (or use a special representation/alias if you support Infinity)
   },
 };
 

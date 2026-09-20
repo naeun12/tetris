@@ -10,6 +10,8 @@ import Marathon from './pages/users/soloGame/Marathon'
 import Settings from "./pages/users/SettingsMenu";
 import Controls from './pages/users/settings/Controls';
 import Handling from "./pages/users/settings/Handling"
+//battle
+import VsBattle from './pages/users/battle/VsBattle';
 
 createRoot(document.getElementById('root')).render(
     <BrowserRouter>
@@ -20,6 +22,7 @@ createRoot(document.getElementById('root')).render(
             <Route path='/Settings' element={<Settings />} />
             <Route path='/settings/handling' element={<Handling />} />
             <Route path='/settings/control' element={<Controls />} />
+            <Route path='/battle' element={<VsBattle />} />
         </Routes>
     </BrowserRouter>
 )
